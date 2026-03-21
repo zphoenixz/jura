@@ -1,0 +1,20 @@
+meta {
+  name: Get Slack Messages
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/slack?week=2026-04-06&channel=core-squad
+  body: none
+  auth: none
+}
+
+params:query {
+  week: 2026-04-06
+  channel: core-squad
+  ~is_dm: false
+  ~is_thread_reply: false
+  ~person_id: replace-with-uuid
+  ~offset: 0
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Get Epics
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/epics?week=2026-04-06
+  body: none
+  auth: none
+}
+
+params:query {
+  week: 2026-04-06
+  ~status: In development
+  ~title: agent
+  ~limit: 100
+  ~offset: 0
+}

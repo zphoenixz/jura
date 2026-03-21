@@ -1,0 +1,7 @@
+{
+  "port": 1934,
+  "project_dir": "/path/to/your/project",
+  "source_dir": "/path/to/your/project/docs",
+  "target_root": "viking://resources",
+  "include": ["*.md", "*.json"]
+}

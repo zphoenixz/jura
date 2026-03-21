@@ -1,0 +1,17 @@
+meta {
+  name: Patch Ticket
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{host}}{{apiPrefix}}/linear/tickets/TEAM-123
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "parent": "TEAM-456"
+  }
+}

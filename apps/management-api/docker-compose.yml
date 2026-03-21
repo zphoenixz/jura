@@ -1,0 +1,31 @@
+services:
+  db:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: mgmt
+      POSTGRES_PASSWORD: mgmt
+      POSTGRES_DB: management
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mgmt -d management"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8100:8100"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mgmt:mgmt@db:5432/management
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

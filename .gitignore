@@ -1,0 +1,4 @@
+.env
+.openviking/manifests/
+.openviking/session/
+.jura/*.json

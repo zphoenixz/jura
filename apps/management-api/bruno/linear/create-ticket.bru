@@ -1,0 +1,19 @@
+meta {
+  name: Create Ticket
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/linear/tickets
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "title": "[EPIC] New Epic",
+    "description": "Created via Management API",
+    "priority": 2
+  }
+}

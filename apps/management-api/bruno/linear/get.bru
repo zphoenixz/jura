@@ -1,0 +1,23 @@
+meta {
+  name: Get Linear Tickets
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/linear?week=2026-04-06
+  body: none
+  auth: none
+}
+
+params:query {
+  week: 2026-04-06
+  ~status_type: in_progress
+  ~status: In Progress
+  ~person_id: replace-with-uuid
+  ~label: Backend
+  ~priority: 2
+  ~identifier: AGT-100
+  ~limit: 100
+  ~offset: 0
+}

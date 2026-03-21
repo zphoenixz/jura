@@ -1,0 +1,18 @@
+meta {
+  name: Post Analysis
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/epics-police/analysis
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "meta": {"week_label": "06-to-12", "generated_at": "2026-04-10T00:00:00Z"},
+    "compliance_snapshot": {"feature_total": 100, "feature_compliant": 80}
+  }
+}

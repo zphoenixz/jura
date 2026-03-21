@@ -1,0 +1,37 @@
+meta {
+  name: Push Epics
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/epics/fetch
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "week": "2026-03-30",
+    "epics": [
+      {
+        "notion_page_id": "page-1",
+        "title": "Agent Always-On",
+        "status": "In development",
+        "team": ["Agents Core"],
+        "pm_lead": "Sam",
+        "sort_order": 1,
+        "content": "# Epic content here",
+        "sub_pages": [
+          {
+            "notion_page_id": "sub-1",
+            "title": "Sub Page 1",
+            "content": "Sub content"
+          }
+        ]
+      }
+    ]
+  }
+}

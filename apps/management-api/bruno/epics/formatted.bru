@@ -1,0 +1,15 @@
+meta {
+  name: Get Epics Formatted
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/epics/formatted?week=2026-04-06
+  body: none
+  auth: none
+}
+
+params:query {
+  week: 2026-04-06
+}

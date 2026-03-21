@@ -1,0 +1,13 @@
+meta {
+  name: Get Person
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/people/:person_id
+}
+
+params:path {
+  person_id: replace-with-uuid
+}

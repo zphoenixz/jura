@@ -1,0 +1,17 @@
+meta {
+  name: List People
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/people
+}
+
+params:query {
+  ~squad: backend
+  ~name: alice
+  ~email: example.com
+  ~limit: 100
+  ~offset: 0
+}

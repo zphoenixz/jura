@@ -1,0 +1,712 @@
+#!/usr/bin/env bash
+# jura - Quick Q&A against OpenViking knowledge base
+# Usage: jura "your question here"
+#        jura -s "follow-up question"   (session mode)
+#        jura -w 518 "question"         (workspace: 518 project)
+
+set -euo pipefail
+
+# ─── Load .env from script's directory (follows symlinks) ─────
+SCRIPT_PATH="$0"
+[[ -L "$SCRIPT_PATH" ]] && SCRIPT_PATH="$(readlink "$SCRIPT_PATH")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
+# ─── Configuration (all overridable via .env or environment) ──
+JURA_NAME="${JURA_NAME:-Jura}"
+JURA_IDENTITY="${JURA_IDENTITY:-a fast Q&A assistant}"
+JURA_MODEL="${JURA_MODEL:-sonnet}"
+JURA_DEFAULT_WORKSPACE="${JURA_DEFAULT_WORKSPACE:-default}"
+JURA_DECAY_DAYS="${JURA_DECAY_DAYS:-10}"
+
+# ─── Workspace mapping (from .jura/*.json settings files) ─────
+workspace_port() {
+  local name="$1"
+  local settings="$SCRIPT_DIR/.jura/${name}.json"
+  [[ -f "$settings" ]] && jq -r '.port' "$settings" && return 0
+  return 1
+}
+
+workspace_list() {
+  for f in "$SCRIPT_DIR/.jura/"*.json; do
+    [[ -f "$f" ]] || continue
+    local ws
+    ws=$(basename "$f" .json)
+    local port
+    port=$(jq -r '.port' "$f")
+    echo "  $ws (port $port)"
+  done
+}
+
+# Colors
+RED='\033[0;31m'
+DIM='\033[2m'
+RESET='\033[0m'
+
+# ─── Subcommand: ls ──────────────────────────────────────────
+# jura ls [-w workspace] [uri]
+if [[ "${1:-}" == "ls" ]]; then
+  shift
+  LS_WS="$JURA_DEFAULT_WORKSPACE"
+  LS_URI="viking://resources/"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -w)  shift; LS_WS="${1:-}"; [[ -z "$LS_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+      -*)  echo -e "${RED}Unknown ls flag: $1${RESET}" >&2; exit 1 ;;
+      *)   LS_URI="$1"; shift ;;
+    esac
+  done
+  LS_PORT=$(workspace_port "$LS_WS") || { echo -e "${RED}Unknown workspace: $LS_WS${RESET}" >&2; exit 1; }
+  LS_CONF=$(mktemp -d)
+  mkdir -p "$LS_CONF/.openviking"
+  echo "{\"url\": \"http://127.0.0.1:${LS_PORT}\"}" > "$LS_CONF/.openviking/ovcli.conf"
+  HOME="$LS_CONF" ov ls "$LS_URI"
+  rm -rf "$LS_CONF"
+  exit 0
+fi
+
+# ─── Subcommand: ov ──────────────────────────────────────────
+# jura ov status|restart|stop|logs [-w workspace]
+# Legacy: jura serve [...] still works
+if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
+  IS_LEGACY=false
+  [[ "$1" == "serve" ]] && IS_LEGACY=true
+  shift
+
+  OV_WS=""
+  OV_CMD=""
+
+  # Legacy serve flags → new commands
+  if $IS_LEGACY; then
+    OV_CMD="restart"  # default: start servers
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        -w)       shift; OV_WS="${1:-}"; [[ -z "$OV_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+        --stop)   OV_CMD="stop"; shift ;;
+        --status) OV_CMD="status"; shift ;;
+        -*)       echo -e "${RED}Unknown flag: $1${RESET}" >&2; exit 1 ;;
+        *)        OV_WS="$1"; shift ;;
+      esac
+    done
+  else
+    OV_CMD="${1:-status}"
+    [[ $# -gt 0 ]] && shift
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        -w)  shift; OV_WS="${1:-}"; [[ -z "$OV_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+        -*)  echo -e "${RED}Unknown flag: $1${RESET}" >&2; exit 1 ;;
+        *)   OV_WS="$1"; shift ;;
+      esac
+    done
+  fi
+
+  # Collect workspaces to operate on
+  OV_TARGETS=()
+  if [[ -n "$OV_WS" ]]; then
+    OV_TARGETS=("$OV_WS")
+  else
+    for f in "$SCRIPT_DIR/.jura/"*.json; do
+      [[ -f "$f" ]] || continue
+      OV_TARGETS+=("$(basename "$f" .json)")
+    done
+  fi
+
+  case "$OV_CMD" in
+    status)
+      for ws in "${OV_TARGETS[@]}"; do
+        settings="$SCRIPT_DIR/.jura/${ws}.json"
+        [[ ! -f "$settings" ]] && { echo -e "${RED}Unknown workspace: $ws${RESET}" >&2; continue; }
+        port=$(jq -r '.port' "$settings")
+        pid=$(lsof -ti "tcp:$port" 2>/dev/null || true)
+        if [[ -n "$pid" ]]; then
+          echo -e "  $ws (port $port) ${DIM}running${RESET} (pid $pid)"
+        else
+          echo -e "  $ws (port $port) ${RED}stopped${RESET}"
+        fi
+      done
+      ;;
+    restart)
+      for ws in "${OV_TARGETS[@]}"; do
+        settings="$SCRIPT_DIR/.jura/${ws}.json"
+        [[ ! -f "$settings" ]] && { echo -e "${RED}Unknown workspace: $ws${RESET}" >&2; continue; }
+        port=$(jq -r '.port' "$settings")
+        project_dir=$(jq -r '.project_dir // empty' "$settings")
+        if [[ -z "$project_dir" ]]; then
+          echo -e "${RED}$ws: no project_dir in settings${RESET}" >&2
+          continue
+        fi
+        ov_conf="$project_dir/.openviking/ov.conf"
+        if [[ ! -f "$ov_conf" ]]; then
+          echo -e "${RED}$ws: $ov_conf not found${RESET}" >&2
+          continue
+        fi
+        # Stop if running
+        pid=$(lsof -ti "tcp:$port" 2>/dev/null || true)
+        [[ -n "$pid" ]] && kill "$pid" 2>/dev/null && sleep 1
+        # Start
+        nohup openviking-server --config "$ov_conf" > "/tmp/ov-${ws}.log" 2>&1 &
+        echo "  $ws (port $port) started (pid $!) — log: /tmp/ov-${ws}.log"
+      done
+      ;;
+    stop)
+      for ws in "${OV_TARGETS[@]}"; do
+        settings="$SCRIPT_DIR/.jura/${ws}.json"
+        [[ ! -f "$settings" ]] && { echo -e "${RED}Unknown workspace: $ws${RESET}" >&2; continue; }
+        port=$(jq -r '.port' "$settings")
+        pid=$(lsof -ti "tcp:$port" 2>/dev/null || true)
+        if [[ -n "$pid" ]]; then
+          kill "$pid" 2>/dev/null
+          echo "  $ws (port $port) stopped (pid $pid)"
+        else
+          echo "  $ws (port $port) not running"
+        fi
+      done
+      ;;
+    logs)
+      for ws in "${OV_TARGETS[@]}"; do
+        logfile="/tmp/ov-${ws}.log"
+        if [[ -f "$logfile" ]]; then
+          [[ ${#OV_TARGETS[@]} -gt 1 ]] && echo -e "${DIM}=== $ws ===${RESET}"
+          tail -100 "$logfile"
+        else
+          echo "  $ws: no log file"
+        fi
+      done
+      ;;
+    *)
+      echo "Usage: $(basename "$0") ov <command> [-w workspace]"
+      echo ""
+      echo "Commands:"
+      echo "  status    Show server status"
+      echo "  restart   Start or restart OV servers"
+      echo "  stop      Stop OV servers"
+      echo "  logs      Show last 100 log lines"
+      exit 0
+      ;;
+  esac
+  exit 0
+fi
+
+# ─── Subcommand: sync ────────────────────────────────────────
+# jura sync [workspace] [--bootstrap|--status] [--dry-run]
+if [[ "${1:-}" == "sync" ]]; then
+  shift
+  SYNC_WS="${JURA_DEFAULT_WORKSPACE}"
+  SYNC_CMD="sync"
+  SYNC_ARGS=()
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -w)          shift; SYNC_WS="${1:-}"; [[ -z "$SYNC_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+      --bootstrap) SYNC_CMD="bootstrap"; shift ;;
+      --status)    SYNC_CMD="status"; shift ;;
+      --dry-run)   SYNC_ARGS+=("--dry-run"); shift ;;
+      -*)          echo -e "${RED}Unknown sync flag: $1${RESET}" >&2; exit 1 ;;
+      *)           SYNC_WS="$1"; shift ;;
+    esac
+  done
+
+  exec python3 "$SCRIPT_DIR/.openviking/plugin/scripts/ov_sync.py" "$SYNC_CMD" "$SYNC_WS" ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}
+fi
+
+# ─── Subcommand: api ────────────────────────────────────────
+# jura api status|restart|stop|logs
+if [[ "${1:-}" == "api" ]]; then
+  shift
+  API_DIR="$SCRIPT_DIR/apps/management-api"
+  API_CMD="${1:-status}"
+  [[ $# -gt 0 ]] && shift
+
+  if [[ ! -f "$API_DIR/docker-compose.yml" ]]; then
+    echo -e "${RED}Error: Management API not found at $API_DIR${RESET}" >&2
+    exit 1
+  fi
+
+  case "$API_CMD" in
+    status)
+      # Check if containers are running
+      if docker compose -f "$API_DIR/docker-compose.yml" ps --status running 2>/dev/null | grep -q "api"; then
+        echo -e "${DIM}Containers running${RESET}" >&2
+        curl -s "http://localhost:8100/api/v1/health" | python3 -c "
+import json, sys
+from datetime import datetime, timedelta, timezone
+local_tz = timezone(timedelta(hours=-4))
+d = json.load(sys.stdin)
+print(f'DB: {d[\"db\"]}')
+running = []
+for src, v in d['sources'].items():
+    status = v.get('last_status') or 'never'
+    raw_ts = v.get('last_fetched') or ''
+    line = f'  {src:8s} {status:8s}'
+    if raw_ts:
+        utc_dt = datetime.fromisoformat(raw_ts.replace('Z', '+00:00'))
+        local_dt = utc_dt.astimezone(local_tz)
+        line += f'  last: {local_dt.strftime(\"%Y-%m-%d %H:%M:%S\")}'
+    if status == 'started':
+        running.append(src)
+    print(line)
+if running:
+    print(f'\nIn progress: {\", \".join(running)}')
+"
+        echo ""
+        echo "Weeks:"
+        curl -s "http://localhost:8100/api/v1/weeks" | python3 -c "
+import json, sys
+weeks = json.load(sys.stdin)
+if not weeks:
+    print('  (no data)')
+else:
+    for w in weeks:
+        s = w['sources']
+        print(f'  {w[\"monday\"]} ({w[\"week_label\"]})  slack={s[\"slack\"]} linear={s[\"linear\"]} meets={s[\"meets\"]} epics={s[\"epics\"]}')
+"
+      else
+        echo -e "${RED}API not running${RESET}" >&2
+        echo "Start with: jura api restart" >&2
+        exit 1
+      fi
+      ;;
+    restart)
+      echo -e "${DIM}Restarting Management API...${RESET}" >&2
+      docker compose -f "$API_DIR/docker-compose.yml" down 2>&1
+      docker compose -f "$API_DIR/docker-compose.yml" up -d 2>&1
+      # Wait for API to be healthy
+      for i in $(seq 1 15); do
+        if curl -sf "http://localhost:8100/api/v1/health" > /dev/null 2>&1; then
+          echo -e "API healthy on http://localhost:8100" >&2
+          exit 0
+        fi
+        sleep 2
+      done
+      echo -e "${RED}API failed to start. Check: jura api logs${RESET}" >&2
+      exit 1
+      ;;
+    stop)
+      echo -e "${DIM}Stopping Management API...${RESET}" >&2
+      docker compose -f "$API_DIR/docker-compose.yml" stop 2>&1
+      echo "Stopped. Data preserved in Docker volume." >&2
+      ;;
+    logs)
+      docker compose -f "$API_DIR/docker-compose.yml" logs api --tail 100
+      ;;
+    job)
+      PLIST_NAME="com.jura.management-api.fetch"
+      JOB_CMD="${1:-status}"
+      [[ $# -gt 0 ]] && shift
+      LOGFILE="$API_DIR/logs/fetch.log"
+
+      case "$JOB_CMD" in
+        status)
+          if [[ -f "$HOME/Library/LaunchAgents/${PLIST_NAME}.plist" ]]; then
+            JOB_INTERVAL=$(defaults read "$HOME/Library/LaunchAgents/${PLIST_NAME}" StartInterval 2>/dev/null || echo "1200")
+            echo "Job: active (every $((JOB_INTERVAL / 60)) min)"
+
+            # Check if curl is actively running (request pending)
+            CURL_PID=$(pgrep -f "localhost:8100/api/v1/.*/fetch" 2>/dev/null || true)
+            if [[ -n "$CURL_PID" ]]; then
+              ACTIVE_URL=$(ps -p $CURL_PID -o args= 2>/dev/null | grep -o '/api/v1/[a-z]*/fetch' | head -1)
+              ACTIVE_SRC=$(echo "$ACTIVE_URL" | sed 's|/api/v1/||;s|/fetch||')
+              echo "Running: POST $ACTIVE_URL (pid $CURL_PID)"
+            else
+              echo "Running: idle (waiting for next interval)"
+            fi
+
+            # Per-source last completed fetch
+            curl -sf "http://localhost:8100/api/v1/health" 2>/dev/null | python3 -c "
+import json, sys
+from datetime import datetime, timedelta, timezone
+local_tz = timezone(timedelta(hours=-4))
+try:
+    d = json.load(sys.stdin)
+    for src in ['slack', 'linear', 'meets', 'epics']:
+        v = d['sources'].get(src, {})
+        status = v.get('last_status') or 'never'
+        raw_ts = v.get('last_fetched') or ''
+        if status == 'started':
+            print(f'  {src:8s} in progress...')
+        elif raw_ts:
+            utc_dt = datetime.fromisoformat(raw_ts.replace('Z', '+00:00'))
+            local_dt = utc_dt.astimezone(local_tz)
+            print(f'  {src:8s} {status:8s} {local_dt.strftime(\"%Y-%m-%d %H:%M:%S\")}')
+        else:
+            print(f'  {src:8s} never fetched')
+except: pass
+" 2>/dev/null
+
+            # Next run estimate
+            NEXT_INFO=$(curl -sf "http://localhost:8100/api/v1/health" 2>/dev/null | python3 -c "
+import json, sys
+from datetime import datetime, timedelta, timezone
+local_tz = timezone(timedelta(hours=-4))
+try:
+    d = json.load(sys.stdin)
+    times = [s['last_fetched'] for s in d['sources'].values() if s.get('last_fetched')]
+    if times:
+        latest_utc = datetime.fromisoformat(max(times).replace('Z', '+00:00'))
+        nxt_utc = latest_utc + timedelta(seconds=$JOB_INTERVAL)
+        now_utc = datetime.now(timezone.utc)
+        nxt_local = nxt_utc.astimezone(local_tz)
+        if nxt_utc < now_utc: print('imminent')
+        else:
+            mins = int((nxt_utc - now_utc).total_seconds() / 60)
+            print(f'{nxt_local.strftime(\"%H:%M:%S\")} (in {mins} min)')
+except: pass
+" 2>/dev/null)
+            [[ -n "$NEXT_INFO" ]] && echo "Next: $NEXT_INFO"
+          else
+            echo "Job: not running"
+          fi
+          ;;
+        start)
+          INTERVAL="${1:-1200}"
+          [[ $# -gt 0 ]] && shift
+          mkdir -p "$API_DIR/logs"
+          pf="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
+
+          # Stop existing job
+          [[ -f "$pf" ]] && launchctl unload "$pf" 2>/dev/null
+
+          # Single plist, sequential fetches via /bin/sh -c
+          # /bin/sh is a system binary — no macOS permission issues
+          # Each curl runs sequentially; if one is slow, the next waits
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0">' \
+            '<dict>' \
+            "  <key>Label</key><string>${PLIST_NAME}</string>" \
+            '  <key>ProgramArguments</key><array>' \
+            '    <string>/bin/sh</string>' \
+            '    <string>-c</string>' \
+            '    <string>/usr/bin/curl -sf -m 600 -X POST http://localhost:8100/api/v1/slack/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/linear/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/meets/fetch -o /dev/null</string>' \
+            '  </array>' \
+            "  <key>StartInterval</key><integer>${INTERVAL}</integer>" \
+            '  <key>RunAtLoad</key><true/>' \
+            '</dict></plist>' > "$pf"
+
+          launchctl load "$pf" 2>/dev/null
+          echo "Job started — fetching all sources every $((INTERVAL / 60)) minutes"
+          echo "Runs sequentially: slack (10 min timeout) → linear → meets"
+          ;;
+        stop)
+          pf="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"
+          if [[ -f "$pf" ]]; then
+            launchctl unload "$pf" 2>/dev/null
+            rm -f "$pf"
+            echo "Job stopped and removed"
+          else
+            echo "Job not installed"
+          fi
+          ;;
+        log|logs)
+          if [[ -f "$LOGFILE" ]]; then
+            tail -50 "$LOGFILE"
+          else
+            echo "No fetch logs yet"
+          fi
+          ;;
+        *)
+          echo "Usage: $(basename "$0") api job <command> [interval_seconds]"
+          echo ""
+          echo "Commands:"
+          echo "  status              Check if job is running"
+          echo "  start [seconds]     Start periodic fetch (default: 1200 = 20 min)"
+          echo "  stop                Stop and remove the job"
+          echo "  logs                Show fetch log"
+          echo ""
+          echo "Examples:"
+          echo "  $(basename "$0") api job start          # Every 20 minutes"
+          echo "  $(basename "$0") api job start 600      # Every 10 minutes"
+          echo "  $(basename "$0") api job start 3600     # Every hour"
+          ;;
+      esac
+      ;;
+    *)
+      echo "Usage: $(basename "$0") api <command>"
+      echo ""
+      echo "Commands:"
+      echo "  status    Health check + weeks summary"
+      echo "  restart   Start or restart the API (preserves data)"
+      echo "  stop      Stop containers (preserves data)"
+      echo "  logs      Show last 100 API log lines"
+      echo "  job       Manage periodic fetch job (start/stop/status/logs)"
+      exit 0
+      ;;
+  esac
+  exit 0
+fi
+
+# Parse flags
+SESSION_ID=""
+WORKSPACE="$JURA_DEFAULT_WORKSPACE"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -w)
+      shift
+      if [[ $# -eq 0 ]]; then
+        echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2
+        echo "Available:" >&2
+        workspace_list >&2
+        exit 1
+      fi
+      WORKSPACE="$1"
+      if ! workspace_port "$WORKSPACE" > /dev/null 2>&1; then
+        echo -e "${RED}Unknown workspace: $WORKSPACE${RESET}" >&2
+        echo "Available:" >&2
+        workspace_list >&2
+        exit 1
+      fi
+      shift
+      ;;
+    -s)
+      shift
+      # Optional custom session name, otherwise daily default
+      if [[ $# -gt 0 && "$1" != -* && $# -gt 1 ]]; then
+        SESSION_ID="$1"
+        shift
+      else
+        SESSION_ID="$(echo "$JURA_NAME" | tr '[:upper:]' '[:lower:]')-$(date +%Y%m%d)"
+      fi
+      ;;
+    -h|--help)
+      echo "$JURA_NAME - Ask questions against your OpenViking knowledge base"
+      echo ""
+      echo "Usage:"
+      echo "  $(basename "$0") \"your question\"              One-shot Q&A"
+      echo "  $(basename "$0") -w <workspace> \"question\"     Query a specific workspace"
+      echo "  $(basename "$0") -s \"question\"                 Session mode (daily, resets next day)"
+      echo "  $(basename "$0") -s myname \"question\"          Named session (persists)"
+      echo "  echo \"question\" | $(basename "$0")             Pipe input"
+      echo ""
+      echo "Sync:"
+      echo "  $(basename "$0") sync                          Incremental sync (default workspace)"
+      echo "  $(basename "$0") sync -w <workspace>           Sync a specific workspace"
+      echo "  $(basename "$0") sync --bootstrap              Full re-ingest (nukes existing data)"
+      echo "  $(basename "$0") sync --status                 Dry-run: show what changed"
+      echo "  $(basename "$0") sync -w <workspace> --dry-run Preview without executing"
+      echo ""
+      echo "OpenViking Servers:"
+      echo "  $(basename "$0") ov status                     Show server status"
+      echo "  $(basename "$0") ov restart                    Start or restart all OV servers"
+      echo "  $(basename "$0") ov restart -w <workspace>     Restart one server"
+      echo "  $(basename "$0") ov stop                       Stop all servers"
+      echo "  $(basename "$0") ov logs                       Last 100 log lines"
+      echo ""
+      echo "Browse:"
+      echo "  $(basename "$0") ls                            List OV resources (default workspace)"
+      echo "  $(basename "$0") ls -w <workspace>             List resources for a workspace"
+      echo "  $(basename "$0") ls viking://resources/docs/   List a specific URI path"
+      echo ""
+      echo "Management API:"
+      echo "  $(basename "$0") api status                    Health check + weeks summary"
+      echo "  $(basename "$0") api restart                   Start or restart (preserves data)"
+      echo "  $(basename "$0") api stop                      Stop containers (preserves data)"
+      echo "  $(basename "$0") api logs                      Last 100 API log lines"
+      echo "  $(basename "$0") api job start [seconds]       Start periodic fetch (default: 20 min)"
+      echo "  $(basename "$0") api job stop                  Stop periodic fetch"
+      echo "  $(basename "$0") api job status                Check job status + recent logs"
+      echo ""
+      echo "Workspaces (-w / sync / ls):"
+      workspace_list
+      echo "  (default: $JURA_DEFAULT_WORKSPACE)"
+      echo "  Workspace configs: .jura/<workspace>.json"
+      echo ""
+      echo "Session mode (-s):"
+      echo "  Carries context across questions so follow-ups work naturally."
+      echo "  Default session resets daily. Named sessions persist until you stop using them."
+      echo ""
+      echo "Environment (set in .env):"
+      echo "  JURA_DEFAULT_WORKSPACE Default workspace (current: $JURA_DEFAULT_WORKSPACE)"
+      echo "  JURA_NAME              Assistant name (current: $JURA_NAME)"
+      echo "  JURA_MODEL             Claude model (current: $JURA_MODEL)"
+      echo "  JURA_RESULTS           Search results to fetch (current: ${JURA_RESULTS:-8})"
+      echo "  JURA_READ              Documents to read (current: ${JURA_READ:-5})"
+      echo "  JURA_THRESHOLD         Min score 0-1 (current: ${JURA_THRESHOLD:-0.10})"
+      echo "  JURA_DECAY_DAYS        Days per decay half-life (current: $JURA_DECAY_DAYS)"
+      exit 0
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+# Set OV_URL from workspace — override ovcli.conf so ov CLI uses correct port
+OV_PORT=$(workspace_port "$WORKSPACE")
+export OV_URL="http://127.0.0.1:${OV_PORT}"
+OV_CONF_DIR=$(mktemp -d)
+mkdir -p "$OV_CONF_DIR/.openviking"
+echo "{\"url\": \"http://127.0.0.1:${OV_PORT}\"}" > "$OV_CONF_DIR/.openviking/ovcli.conf"
+REAL_HOME="$HOME"
+
+# Get question from remaining args or stdin
+if [[ $# -gt 0 ]]; then
+  QUESTION="$*"
+elif [[ ! -t 0 ]]; then
+  QUESTION=$(cat)
+else
+  echo -e "${RED}Usage: $(basename "$0") <question>${RESET}"
+  echo "  $(basename "$0") \"who leads the Search squad?\""
+  echo "  $(basename "$0") -h for full help"
+  exit 1
+fi
+
+# How many results to fetch/read
+N_SEARCH="${JURA_RESULTS:-8}"
+N_READ="${JURA_READ:-5}"
+THRESHOLD="${JURA_THRESHOLD:-0.10}"
+
+# 1. Search OV in parallel (context-aware + semantic)
+echo -e "${DIM}[$WORKSPACE] Searching...${RESET}" >&2
+
+SEARCH_TMP=$(mktemp)
+FIND_TMP=$(mktemp)
+trap 'rm -f "$SEARCH_TMP" "$FIND_TMP"; rm -rf "$OV_CONF_DIR"' EXIT
+
+SESSION_FLAG=""
+[[ -n "$SESSION_ID" ]] && SESSION_FLAG="--session-id $SESSION_ID"
+
+HOME="$OV_CONF_DIR" ov search "$QUESTION" -n "$N_SEARCH" -t "$THRESHOLD" -o json $SESSION_FLAG 2>&1 | tail -n 1 > "$SEARCH_TMP" &
+HOME="$OV_CONF_DIR" ov find "$QUESTION" -n "$N_SEARCH" -t "$THRESHOLD" -o json 2>&1 | tail -n 1 > "$FIND_TMP" &
+wait
+
+SEARCH_JSON=$(cat "$SEARCH_TMP")
+FIND_JSON=$(cat "$FIND_TMP")
+
+# Extract URIs + scores from both, deduplicate, apply recency decay, re-rank
+extract_scored() {
+  echo "$1" | jq -r '
+    [
+      (.result.resources // [] | .[] | "\(.score)\t\(.uri)"),
+      (.result.memories  // [] | .[] | "\(.score)\t\(.uri)")
+    ] | .[]
+  ' 2>/dev/null
+}
+
+TODAY_EPOCH=$(date +%s)
+
+# Extract date from URI path. Returns epoch or empty if undateable.
+# Patterns: MM-YYYY/DD-to-DD, MM-YYYY/DD_MM, MM_DD_week_plan, MM-YYYY (month only)
+uri_epoch() {
+  local uri="$1"
+  local m d y
+
+  # MM-YYYY/DD1-to-DD2 (use end date DD2; if DD2 < DD1, range crosses into next month)
+  if [[ "$uri" =~ ([0-9]{2})-([0-9]{4})/([0-9]{2})-to-([0-9]{2}) ]]; then
+    m="${BASH_REMATCH[1]}" y="${BASH_REMATCH[2]}"
+    local d1="${BASH_REMATCH[3]}" d2="${BASH_REMATCH[4]}"
+    d="$d2"
+    if [[ "${d2#0}" -lt "${d1#0}" ]]; then
+      m=$(printf '%02d' $(( ${m#0} + 1 )))
+      if [[ "$m" == "13" ]]; then m="01"; y=$(( y + 1 )); fi
+    fi
+    date -j -f "%Y-%m-%d" "${y}-${m}-${d}" +%s 2>/dev/null && return
+  fi
+
+  # DD_MM in filename (daily/tracker style)
+  if [[ "$uri" =~ /([0-9]{2})_([0-9]{2})\. ]]; then
+    d="${BASH_REMATCH[1]}" m="${BASH_REMATCH[2]}"
+    y=$(date +%Y)
+    date -j -f "%Y-%m-%d" "${y}-${m}-${d}" +%s 2>/dev/null && return
+  fi
+
+  # MM_DD_week_plan
+  if [[ "$uri" =~ /([0-9]{2})_([0-9]{2})_week_plan ]]; then
+    m="${BASH_REMATCH[1]}" d="${BASH_REMATCH[2]}"
+    y=$(date +%Y)
+    date -j -f "%Y-%m-%d" "${y}-${m}-${d}" +%s 2>/dev/null && return
+  fi
+
+  # MM-YYYY only (month precision, use 1st of month)
+  if [[ "$uri" =~ ([0-9]{2})-([0-9]{4})/ ]]; then
+    m="${BASH_REMATCH[1]}" y="${BASH_REMATCH[2]}"
+    date -j -f "%Y-%m-%d" "${y}-${m}-01" +%s 2>/dev/null && return
+  fi
+}
+
+# Merge, dedup, decay, re-rank
+RANKED=$(
+  { extract_scored "$SEARCH_JSON"; extract_scored "$FIND_JSON"; } \
+  | grep -v '\.abstract\.md$' \
+  | grep -v '\.overview\.md$' \
+  | awk -F'\t' '!seen[$2]++ { print }' \
+  | while IFS=$'\t' read -r score uri; do
+      ep=$(uri_epoch "$uri")
+      if [[ -n "$ep" ]]; then
+        days_old=$(( (TODAY_EPOCH - ep) / 86400 ))
+        [[ $days_old -lt 0 ]] && days_old=0
+      else
+        days_old=-1  # undateable, no decay
+      fi
+      printf '%s\t%s\t%s\n' "$score" "$days_old" "$uri"
+    done \
+  | awk -F'\t' -v decay_days="$JURA_DECAY_DAYS" '{
+      score = $1 + 0
+      days = $2 + 0
+      uri = $3
+      if (days < 0 || decay_days == 0) {
+        factor = 1.0  # undateable = evergreen, or decay disabled
+      } else {
+        bucket = int(days / decay_days)
+        factor = 1.0 / (2 ^ bucket)
+        if (factor < 0.01) factor = 0.01
+      }
+      adjusted = score * factor
+      printf "%.6f\t%.4f\t%.4f\t%d\t%s\n", adjusted, score, factor, days, uri
+    }' \
+  | sort -t$'\t' -k1 -rn \
+  | head -n "$N_READ"
+)
+
+# Show ranked results in stderr
+echo -e "${DIM}  Results (adjusted / raw / decay / age):${RESET}" >&2
+echo "$RANKED" | while IFS=$'\t' read -r adj raw factor days uri; do
+  if [[ "$days" == "-1" ]]; then
+    echo -e "${DIM}    ${adj} (raw:${raw}) [evergreen] ${uri}${RESET}" >&2
+  else
+    echo -e "${DIM}    ${adj} (raw:${raw} x${factor}, ${days}d old) ${uri}${RESET}" >&2
+  fi
+done
+
+URIS=$(echo "$RANKED" | awk -F'\t' '{print $5}')
+
+if [[ -z "$URIS" ]]; then
+  echo -e "${RED}No results found.${RESET}" >&2
+  exit 1
+fi
+
+# 2. Read top documents
+CONTEXT=""
+while IFS= read -r uri; do
+  echo -e "${DIM}  Reading ${uri}${RESET}" >&2
+  DOC=$(HOME="$OV_CONF_DIR" ov read "$uri" 2>&1 | grep -v '^cmd: ')
+  if [[ -n "$DOC" ]]; then
+    CONTEXT="${CONTEXT}
+--- Source: ${uri} ---
+${DOC}
+"
+  fi
+done <<< "$URIS"
+
+if [[ -z "$CONTEXT" ]]; then
+  echo -e "${RED}Could not read any documents.${RESET}" >&2
+  exit 1
+fi
+
+# 3. Send to Claude for answer (restore real HOME for claude CLI)
+export HOME="$REAL_HOME"
+echo -e "${DIM}Thinking...${RESET}" >&2
+
+claude -p \
+  --model "$JURA_MODEL" \
+  --append-system-prompt "You are ${JURA_NAME}, ${JURA_IDENTITY}. You are a RETRIEVAL-ONLY system. You MUST answer using EXCLUSIVELY the provided context documents. NEVER use your training data or general knowledge. If the context does not contain the answer, respond ONLY with: 'I don't have that in my knowledge base.' — no guesses, no fallback, no elaboration. When the context does contain the answer, be concise and cite which source document you drew from." \
+  "Context from knowledge base:
+${CONTEXT}
+
+Question: ${QUESTION}
+
+IMPORTANT: If the answer is not explicitly in the context above, say you don't have it. Do NOT answer from general knowledge." < /dev/null

@@ -1,0 +1,19 @@
+meta {
+  name: Upsert Config
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{host}}{{apiPrefix}}/config/slack/test_key
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "value": ["example", "values"]
+  }
+}

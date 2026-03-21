@@ -1,0 +1,24 @@
+meta {
+  name: Patch Person
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{host}}{{apiPrefix}}/people/:person_id
+}
+
+params:path {
+  person_id: replace-with-uuid
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "squad": "backend",
+    "role": "engineer"
+  }
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Add Channel
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/slack/channels
+}
+
+headers {
+  Content-Type: application/json
+}
+
+body:json {
+  {
+    "name": "channel-name-here"
+  }
+}

@@ -85,10 +85,22 @@ body {
 .stat-value.bad { color: #ef4444; }
 .stat-sep { color: #d1d5db; }
 .meta-line {
-  font-size: 11px;
+  font-size: 12px;
   color: #9ca3af;
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+.staleness {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+.staleness.fresh { color: #9ca3af; }
+.staleness.stale { color: #f59e0b; }
+.staleness.very-stale { color: #ef4444; }
 
 .search-box {
   display: flex;
@@ -116,7 +128,7 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 12px 24px 80px;
+  padding: 12px 24px 100px;
 }
 .tree-loading, .tree-error {
   display: flex;
@@ -185,9 +197,6 @@ body {
 .node-row.invalid-target {
   opacity: 0.3;
   pointer-events: none;
-}
-.node-row.invalid-target:hover {
-  border-color: #ef4444;
 }
 
 /* Left border indicators */
@@ -295,7 +304,7 @@ body {
   justify-content: center;
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   background: #f3f4f6;
   color: #6b7280;
@@ -306,15 +315,18 @@ body {
 
 /* Labels */
 .label-tag {
-  display: inline-flex;
+  display: none;
   align-items: center;
   padding: 0 5px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   white-space: nowrap;
   flex-shrink: 0;
   height: 18px;
+}
+.node-row:hover .label-tag {
+  display: inline-flex;
 }
 
 /* Status badge */
@@ -323,7 +335,7 @@ body {
   align-items: center;
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   flex-shrink: 0;
   white-space: nowrap;
@@ -365,7 +377,7 @@ body {
   white-space: nowrap;
 }
 .suggestion-ghost .suggestion-conf {
-  font-size: 10px;
+  font-size: 11px;
   color: #b45309;
   flex-shrink: 0;
   font-weight: 500;
@@ -483,6 +495,10 @@ body {
   flex-direction: column;
   gap: 8px;
   pointer-events: none;
+  transition: bottom 0.2s ease;
+}
+.staging-active .toast-container {
+  bottom: 70px;
 }
 .toast {
   pointer-events: auto;
@@ -553,6 +569,229 @@ body {
   gap: 8px;
 }
 
+/* ========== Help Popover ========== */
+.help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.help-btn:hover { background: #f3f4f6; color: #374151; }
+.help-btn.active { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
+.help-popover {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  width: 340px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.10);
+  padding: 14px 16px;
+  z-index: 200;
+  font-size: 12px;
+  color: #374151;
+  line-height: 1.6;
+}
+.help-popover.visible { display: block; }
+.help-popover h4 { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 8px; }
+.help-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+.help-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.help-shortcuts {
+  border-top: 1px solid #f3f4f6;
+  padding-top: 8px;
+  margin-top: 4px;
+}
+.help-shortcuts kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid #d1d5db;
+  border-radius: 3px;
+  background: #f9fafb;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  color: #374151;
+}
+
+/* ========== Empty States ========== */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  color: #6b7280;
+  text-align: center;
+}
+.empty-state-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+  opacity: 0.6;
+}
+.empty-state-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+.empty-state-text {
+  font-size: 13px;
+  max-width: 320px;
+  line-height: 1.5;
+}
+.empty-state-win .empty-state-icon { opacity: 1; }
+.empty-state-win .empty-state-title { color: #065f46; }
+
+/* ========== Batch Apply ========== */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 6px;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  font-size: 12px;
+  color: #92400e;
+}
+
+/* ========== Confirm Button State ========== */
+.btn-confirm {
+  background: #dc2626;
+  color: #fff;
+  border-color: #dc2626;
+  animation: pulse-confirm 1s ease-in-out infinite;
+}
+.btn-confirm:hover { background: #b91c1c; }
+@keyframes pulse-confirm {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220,38,38,0.3); }
+  50% { box-shadow: 0 0 0 4px rgba(220,38,38,0); }
+}
+
+/* ========== Toast Undo ========== */
+.toast-undo {
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 4px;
+  opacity: 0.9;
+}
+.toast-undo:hover { opacity: 1; }
+
+/* ========== Filter Count ========== */
+.filter-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9ca3af;
+  margin-left: 2px;
+}
+.filter-tab.active .filter-count {
+  color: #60a5fa;
+}
+
+/* ========== Staged Changes ========== */
+.node-row.is-staged {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  border-style: dashed;
+}
+.node-row.is-staged:hover {
+  background: #ede9fe;
+}
+.staged-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.staged-badge .unstage-x {
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 12px;
+  line-height: 1;
+}
+.staged-badge .unstage-x:hover { opacity: 1; }
+
+.staging-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 24px;
+  background: #faf5ff;
+  border-top: 2px solid #c4b5fd;
+  box-shadow: 0 -2px 12px rgba(109,40,217,0.08);
+  z-index: 200;
+  transform: translateY(100%);
+  transition: transform 0.2s ease;
+}
+.staging-bar.visible {
+  transform: translateY(0);
+}
+.staging-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6d28d9;
+}
+.staging-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-staged-save {
+  background: #7c3aed;
+  color: #fff;
+  border-color: #7c3aed;
+}
+.btn-staged-save:hover { background: #6d28d9; }
+.btn-staged-discard {
+  background: #fff;
+  color: #6d28d9;
+  border-color: #c4b5fd;
+}
+.btn-staged-discard:hover { background: #f5f3ff; }
+
 /* ========== Utility ========== */
 .hidden { display: none !important; }
 .flex-gap-4 { display: flex; align-items: center; gap: 4px; }
@@ -605,13 +844,32 @@ body {
           <input type="text" id="searchInput" placeholder="Filter by ID or title..." oninput="handleSearch(this.value)">
         </div>
         <div class="filter-tabs" id="filterTabs">
-          <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All</button>
-          <button class="filter-tab" data-filter="orphans" onclick="setFilter('orphans')">Orphans</button>
-          <button class="filter-tab" data-filter="epics" onclick="setFilter('epics')">Epics</button>
+          <button class="filter-tab active" data-filter="all" onclick="setFilter('all')">All <span class="filter-count" id="filterCountAll"></span></button>
+          <button class="filter-tab" data-filter="orphans" onclick="setFilter('orphans')">Orphans <span class="filter-count" id="filterCountOrphans"></span></button>
+          <button class="filter-tab" data-filter="epics" onclick="setFilter('epics')">Epics <span class="filter-count" id="filterCountEpics"></span></button>
         </div>
+        <span class="staleness fresh" id="dataFreshness"></span>
         <button class="btn" onclick="refreshAll()" id="refreshBtn">
-          <span class="btn-icon" id="refreshIcon">&#x21BB;</span> Refresh
+          <span class="btn-icon" id="refreshIcon">&#x21BB;</span> Sync
         </button>
+        <div style="position:relative">
+          <button class="help-btn" id="helpBtn" onclick="toggleHelp()" title="Help">?</button>
+          <div class="help-popover" id="helpPopover">
+            <h4>Quick Guide</h4>
+            <div class="help-legend">
+              <div class="help-legend-item"><span class="help-swatch" style="background:#2563eb"></span> Epic — parent ticket grouping features</div>
+              <div class="help-legend-item"><span class="help-swatch" style="background:#f59e0b"></span> Orphan — feature with no epic parent</div>
+              <div class="help-legend-item"><span class="help-swatch" style="background:#d1d5db"></span> Compliant — feature under an epic</div>
+              <div class="help-legend-item"><span class="help-swatch" style="border:1px dashed #fbbf24;background:#fffbeb"></span> Suggestion — AI-matched reparent</div>
+            </div>
+            <p style="margin-bottom:6px"><strong>Compliance %</strong> = features with an epic parent / total features. Goal: 100%.</p>
+            <p style="margin-bottom:6px"><strong>Drag &amp; drop</strong> tickets to reparent them. Drop on a ticket to nest, or above/below to reorder.</p>
+            <div class="help-shortcuts">
+              <strong>Shortcuts</strong><br>
+              <kbd>&#8984;K</kbd> Focus search &nbsp; <kbd>Esc</kbd> Clear search &nbsp; <kbd>?</kbd> Toggle this help
+            </div>
+          </div>
+        </div>
       </div>
     </div>
     <div class="stats-bar" id="statsBar">
@@ -635,6 +893,16 @@ body {
 
 <div class="toast-container" id="toastContainer"></div>
 
+<div class="staging-bar" id="stagingBar">
+  <div class="staging-bar-left">
+    <span id="stagingCount">0</span> staged — <span id="stagingDetail"></span>
+  </div>
+  <div class="staging-bar-right">
+    <button class="btn btn-staged-discard" onclick="discardAllStaged()">Discard all</button>
+    <button class="btn btn-staged-save" onclick="commitAllStaged()" id="commitBtn">Save all</button>
+  </div>
+</div>
+
 <script>
 /* ================================================================
    STATE
@@ -651,22 +919,39 @@ let searchQuery = '';
 let activeFilter = 'all';     // 'all' | 'orphans' | 'epics'
 let draggedId = null;          // identifier of node being dragged
 let dragDescendants = new Set();
+let undoStack = [];            // [{childId, oldParent, description}]
+let dataLoadedAt = null;       // Date when data was last fetched
+
+// Staging: local changes not yet committed to Linear
+let stagedChanges = {};        // {childId: {newParent, oldParent, type, description}}
+                               // type: 'reparent' | 'rename'
+let stagedRejections = new Set();   // orphan identifiers staged for rejection
+let persistedRejections = new Set(); // already saved rejections loaded from API
 
 /* ================================================================
    BOOT
    ================================================================ */
 async function init() {
   try {
-    const [ticketData, analysisData, peopleData, ignoredData] = await Promise.allSettled([
+    const [ticketData, analysisData, peopleData, ignoredData, rejectedData] = await Promise.allSettled([
       fetchJSON(API + '/api/v1/linear?limit=5000'),
       fetchJSON(API + '/api/v1/epics-police/analysis'),
       fetchJSON(API + '/api/v1/people?limit=5000'),
       fetchJSON(API + '/api/v1/config/epics_police/ignored_assignees'),
+      fetchJSON(API + '/api/v1/config/epics_police/rejected_suggestions'),
     ]);
 
     // Load ignored assignees first so we can filter tickets
     if (ignoredData.status === 'fulfilled' && ignoredData.value) {
       loadIgnoredAssignees(ignoredData.value);
+    }
+
+    // Load persisted rejections
+    if (rejectedData.status === 'fulfilled' && rejectedData.value) {
+      var list = rejectedData.value.value || rejectedData.value;
+      if (Array.isArray(list)) {
+        list.forEach(function(id) { persistedRejections.add(id); });
+      }
     }
 
     if (ticketData.status === 'fulfilled' && ticketData.value) {
@@ -685,13 +970,14 @@ async function init() {
       });
     }
 
+    dataLoadedAt = new Date();
     rebuildIndex();
     autoExpandEpics();
     renderAll();
   } catch (err) {
     document.getElementById('loadingState').className = 'tree-error';
-    document.getElementById('loadingState').textContent = 'Failed to load: ' + err.message;
-    showToast('error', 'Failed to load data: ' + err.message);
+    document.getElementById('loadingState').textContent = 'Could not load tickets. Is the API running?';
+    showToast('error', 'Could not load data. Is the API running on localhost:8100?');
   }
 }
 
@@ -805,10 +1091,12 @@ function getMatchedOrphansForEpic(epicId) {
   if (!analysis || !analysis.declared_epics) return [];
   var epic = analysis.declared_epics.find(function(e) { return e.identifier === epicId; });
   if (!epic || !epic.matched_orphans) return [];
-  // Filter out those that are already children of this epic
+  // Filter out already-parented, staged-rejected, and persisted-rejected suggestions
   return epic.matched_orphans.filter(function(mo) {
     var ticket = ticketsById[mo.identifier];
     if (!ticket) return false;
+    if (stagedRejections.has(mo.identifier)) return false;
+    if (persistedRejections.has(mo.identifier)) return false;
     return ticket.parent_identifier !== epicId;
   });
 }
@@ -960,7 +1248,24 @@ function escapeHtml(str) {
    ================================================================ */
 function renderAll() {
   renderStats();
+  renderFilterCounts();
   renderTree();
+}
+
+function renderFilterCounts() {
+  var orphanCount = 0;
+  var epicCount = 0;
+  allTickets.forEach(function(t) {
+    if (isEpicPrefixed(t.title)) epicCount++;
+    else if (!hasEpicAncestor(t.identifier) && !t.parent_identifier) orphanCount++;
+  });
+  var el;
+  el = document.getElementById('filterCountAll');
+  if (el) el.textContent = allTickets.length;
+  el = document.getElementById('filterCountOrphans');
+  if (el) el.textContent = orphanCount;
+  el = document.getElementById('filterCountEpics');
+  if (el) el.textContent = epicCount;
 }
 
 function renderStats() {
@@ -994,16 +1299,21 @@ function renderStats() {
   document.getElementById('statTickets').textContent = total;
   document.getElementById('statSuggestions').textContent = countSuggestions();
 
-  var meta = '';
+  // Meta line: analysis info only
+  var metaEl = document.getElementById('metaLine');
+  metaEl.textContent = '';
   if (analysis && analysis.meta) {
     var m = analysis.meta;
-    meta = 'Analysis: ' + (m.week_label || '') + ' (' + (m.month_dir || '') + ')';
+    var text = 'Analysis: ' + (m.week_label || '') + ' (' + (m.month_dir || '') + ')';
     if (m.generated_at) {
       var d = new Date(m.generated_at);
-      meta += ' | Generated ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+      text += ' — ran ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
     }
+    metaEl.textContent = text;
   }
-  document.getElementById('metaLine').textContent = meta;
+
+  // Data freshness: next to Refresh button
+  renderFreshness();
 }
 
 function renderTree() {
@@ -1018,12 +1328,36 @@ function renderTree() {
     return a.identifier.localeCompare(b.identifier, undefined, { numeric: true });
   });
 
+  // Empty state: no tickets at all
+  if (allTickets.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">&#x1F4CB;</div><div class="empty-state-title">No tickets loaded</div><div class="empty-state-text">Check that the API is running and data has been fetched, then hit Refresh.</div></div>';
+    return;
+  }
+
   var html = '';
+
+  // Batch apply bar for suggestions
+  var totalSuggestions = countSuggestions();
+  if (totalSuggestions > 1) {
+    html += '<div class="batch-bar"><span>' + totalSuggestions + ' suggestions available</span><button class="btn btn-sm btn-amber" onclick="applyAllSuggestions()">Apply all suggestions</button></div>';
+  }
+
+  var visibleCount = 0;
   roots.forEach(function(t) {
     if (shouldShowNode(t.identifier)) {
       html += renderNode(t, 0);
+      visibleCount++;
     }
   });
+
+  // Empty state for filter results
+  if (visibleCount === 0 && activeFilter === 'orphans') {
+    html += '<div class="empty-state empty-state-win"><div class="empty-state-icon">&#x2705;</div><div class="empty-state-title">No orphans</div><div class="empty-state-text">Every feature ticket has an epic parent. Full compliance.</div></div>';
+  } else if (visibleCount === 0 && searchQuery) {
+    html += '<div class="empty-state"><div class="empty-state-icon">&#x1F50D;</div><div class="empty-state-title">No matches</div><div class="empty-state-text">Nothing matched "' + escapeHtml(searchQuery) + '". Try a different search.</div></div>';
+  } else if (visibleCount === 0) {
+    html += '<div class="empty-state"><div class="empty-state-icon">&#x1F4CB;</div><div class="empty-state-title">No tickets to show</div><div class="empty-state-text">Try changing the filter or refreshing.</div></div>';
+  }
 
   // Proposed epics section
   var proposed = getProposedEpics();
@@ -1050,8 +1384,11 @@ function renderNode(ticket, depth) {
   var matchedOrphans = isEpic ? getMatchedOrphansForEpic(id) : [];
   var implicitCandidate = getImplicitCandidate(id);
 
+  var isStaged = !!stagedChanges[id];
+
   var nodeClasses = ['node-row'];
-  if (isEpic) nodeClasses.push('is-epic');
+  if (isStaged) nodeClasses.push('is-staged');
+  else if (isEpic) nodeClasses.push('is-epic');
   else if (isOrphan) nodeClasses.push('is-orphan');
 
   var titleClasses = ['node-title'];
@@ -1108,6 +1445,11 @@ function renderNode(ticket, depth) {
 
   // Status badge
   html += '<span class="status-badge ' + statusClass(ticket.status_type) + '">' + escapeHtml(ticket.status || 'Unknown') + '</span>';
+
+  // Staged badge
+  if (isStaged) {
+    html += '<span class="staged-badge">staged <span class="unstage-x" onclick="unstageChange(event, \'' + id + '\')" title="Unstage this change">&times;</span></span>';
+  }
 
   // Points
   if (ticket.points != null) {
@@ -1168,6 +1510,7 @@ function renderSuggestionGhost(orphan, matchInfo, epicId) {
   html += '<span class="suggestion-text" title="' + escapeHtml(orphan.title) + '">' + escapeHtml(orphan.title) + '</span>';
   html += '<span class="suggestion-conf">' + (matchInfo.confidence || '?') + '%</span>';
   html += '<button class="btn btn-sm btn-amber" onclick="applySuggestion(event, \'' + orphan.identifier + '\', \'' + epicId + '\')">Apply</button>';
+  html += '<button class="btn btn-sm" onclick="rejectSuggestion(event, \'' + orphan.identifier + '\')" style="color:#9ca3af">Reject</button>';
   html += '</div>';
   return html;
 }
@@ -1345,155 +1688,43 @@ function onRootDrop(event) {
 /* ================================================================
    API MUTATIONS
    ================================================================ */
-async function moveToParent(childId, newParentId) {
-  var ticket = ticketsById[childId];
-  if (!ticket) return;
-
-  var oldParent = ticket.parent_identifier;
-
-  // Optimistic update
-  ticket.parent_identifier = newParentId;
+function moveToParent(childId, newParentId) {
+  stageReparent(childId, newParentId);
   if (newParentId) expandedNodes.add(newParentId);
   renderAll();
-
-  try {
-    var body = { parent: newParentId };
-    var res = await fetch(API + '/api/v1/linear/tickets/' + childId, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!res.ok) {
-      var err = await res.json().catch(function() { return {}; });
-      throw new Error(err.error || 'HTTP ' + res.status);
-    }
-
-    var data = await res.json();
-    if (data.items) {
-      allTickets = filterIgnored(data.items);
-      rebuildIndex();
-    }
-    renderAll();
-    showToast('success', childId + ' moved to ' + (newParentId || 'root'));
-  } catch (err) {
-    // Revert
-    ticket.parent_identifier = oldParent;
-    renderAll();
-    showToast('error', 'Move failed: ' + err.message);
-  }
 }
 
-async function moveSibling(movedId, targetId, position) {
+function moveSibling(movedId, targetId, position) {
   var target = ticketsById[targetId];
   if (!target) return;
-
   var parentId = target.parent_identifier;
-  var moved = ticketsById[movedId];
-  var oldParent = moved ? moved.parent_identifier : null;
-
-  // Optimistic: update parent of moved ticket
-  if (moved) moved.parent_identifier = parentId;
-
-  // Build new children order for parent
-  var siblings;
-  if (parentId && ticketsById[parentId]) {
-    siblings = getChildren(parentId);
-  } else {
-    siblings = getRoots();
-  }
-
-  // Remove moved from the list if it's already there
-  var order = siblings.filter(function(s) { return s.identifier !== movedId; }).map(function(s) { return s.identifier; });
-
-  // Find target index and insert
-  var targetIdx = order.indexOf(targetId);
-  if (targetIdx === -1) targetIdx = order.length;
-  if (position === 'below') targetIdx += 1;
-  order.splice(targetIdx, 0, movedId);
-
+  stageReparent(movedId, parentId);
   if (parentId) expandedNodes.add(parentId);
   renderAll();
-
-  try {
-    // First, reparent if needed
-    if (oldParent !== parentId) {
-      var reparentRes = await fetch(API + '/api/v1/linear/tickets/' + movedId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ parent: parentId || null }),
-      });
-      if (!reparentRes.ok) {
-        var err = await reparentRes.json().catch(function() { return {}; });
-        throw new Error(err.error || 'HTTP ' + reparentRes.status);
-      }
-    }
-
-    // Then set children order on parent (if there's a parent)
-    if (parentId) {
-      var orderRes = await fetch(API + '/api/v1/linear/tickets/' + parentId, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ children: order }),
-      });
-
-      if (!orderRes.ok) {
-        var err = await orderRes.json().catch(function() { return {}; });
-        throw new Error(err.error || 'HTTP ' + orderRes.status);
-      }
-
-      var data = await orderRes.json();
-      if (data.items) {
-        allTickets = filterIgnored(data.items);
-        rebuildIndex();
-      }
-    }
-
-    renderAll();
-    showToast('success', movedId + ' reordered');
-  } catch (err) {
-    // Revert
-    if (moved) moved.parent_identifier = oldParent;
-    renderAll();
-    showToast('error', 'Reorder failed: ' + err.message);
-  }
 }
 
 /* ================================================================
    SUGGESTION ACTIONS
    ================================================================ */
-async function applySuggestion(event, orphanId, epicId) {
+function applySuggestion(event, orphanId, epicId) {
   event.stopPropagation();
-  var btn = event.target;
-  btn.disabled = true;
-  btn.textContent = '...';
+  stageReparent(orphanId, epicId);
+  expandedNodes.add(epicId);
+  renderAll();
+}
 
-  try {
-    var res = await fetch(API + '/api/v1/linear/tickets/' + orphanId, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ parent: epicId }),
-    });
-
-    if (!res.ok) {
-      var err = await res.json().catch(function() { return {}; });
-      throw new Error(err.error || 'HTTP ' + res.status);
-    }
-
-    var data = await res.json();
-    if (data.items) {
-      allTickets = filterIgnored(data.items);
-      rebuildIndex();
-    }
-
-    expandedNodes.add(epicId);
-    renderAll();
-    showToast('success', orphanId + ' linked to ' + epicId);
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = 'Apply';
-    showToast('error', 'Apply failed: ' + err.message);
+function rejectSuggestion(event, orphanId) {
+  event.stopPropagation();
+  stagedRejections.add(orphanId);
+  // If it was staged as an apply, remove that
+  if (stagedChanges[orphanId]) {
+    var change = stagedChanges[orphanId];
+    var ticket = ticketsById[orphanId];
+    if (ticket) ticket.parent_identifier = change.oldParent;
+    delete stagedChanges[orphanId];
   }
+  updateStagingBar();
+  renderAll();
 }
 
 async function applyRename(event, identifier, newTitle) {
@@ -1537,7 +1768,7 @@ async function applyRename(event, identifier, newTitle) {
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Apply';
-    showToast('error', 'Rename failed: ' + err.message);
+    showToast('error', 'Could not rename ' + identifier + '. ' + err.message);
   }
 }
 
@@ -1548,6 +1779,23 @@ async function applyProposedEpic(event, proposedIdx) {
   if (!pe) return;
 
   var btn = event.target;
+
+  // Confirmation gate
+  if (!btn.dataset.confirmed) {
+    btn.textContent = 'Confirm? Creates a real ticket';
+    btn.className = 'btn btn-sm btn-confirm';
+    btn.dataset.confirmed = 'pending';
+    setTimeout(function() {
+      if (btn.dataset.confirmed === 'pending') {
+        btn.textContent = 'Create & Apply';
+        btn.className = 'btn btn-sm btn-primary';
+        delete btn.dataset.confirmed;
+      }
+    }, 3000);
+    return;
+  }
+  delete btn.dataset.confirmed;
+
   btn.disabled = true;
   btn.textContent = 'Creating...';
 
@@ -1615,13 +1863,23 @@ async function applyProposedEpic(event, proposedIdx) {
   } catch (err) {
     btn.disabled = false;
     btn.textContent = 'Create & Apply';
-    showToast('error', 'Create failed: ' + err.message);
+    btn.className = 'btn btn-sm btn-primary';
+    showToast('error', 'Could not create epic. ' + err.message);
   }
 }
 
 /* ================================================================
    REFRESH
    ================================================================ */
+function getCurrentWeekParam() {
+  var now = new Date();
+  var day = now.getDay();
+  var diff = day === 0 ? -6 : 1 - day; // Monday
+  var monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  return monday.toISOString().split('T')[0];
+}
+
 async function refreshAll() {
   var btn = document.getElementById('refreshBtn');
   var icon = document.getElementById('refreshIcon');
@@ -1629,7 +1887,17 @@ async function refreshAll() {
   icon.style.display = 'none';
   btn.insertAdjacentHTML('afterbegin', '<span class="spinner" id="refreshSpinner" style="margin-right:4px"></span>');
 
+  var week = getCurrentWeekParam();
+
   try {
+    // Step 1: Fetch fresh data from Linear into the DB
+    var fetchRes = await fetch(API + '/api/v1/linear/fetch?week=' + week, { method: 'POST' });
+    if (!fetchRes.ok) {
+      var fetchErr = await fetchRes.json().catch(function() { return {}; });
+      throw new Error(fetchErr.error || humanizeError(fetchRes.status));
+    }
+
+    // Step 2: Read the now-fresh data
     var [ticketData, analysisData, peopleData, ignoredData] = await Promise.allSettled([
       fetchJSON(API + '/api/v1/linear?limit=5000'),
       fetchJSON(API + '/api/v1/epics-police/analysis'),
@@ -1653,11 +1921,12 @@ async function refreshAll() {
       });
     }
 
+    dataLoadedAt = new Date();
     rebuildIndex();
     renderAll();
-    showToast('success', 'Refreshed ' + allTickets.length + ' tickets');
+    showToast('success', 'Synced from Linear — ' + allTickets.length + ' tickets');
   } catch (err) {
-    showToast('error', 'Refresh failed: ' + err.message);
+    showToast('error', 'Sync failed. ' + err.message);
   } finally {
     btn.disabled = false;
     var sp = document.getElementById('refreshSpinner');
@@ -1705,8 +1974,13 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     document.getElementById('searchInput').focus();
   }
-  // Escape clears search
+  // Escape clears search or closes help
   if (e.key === 'Escape') {
+    var popover = document.getElementById('helpPopover');
+    if (popover && popover.classList.contains('visible')) {
+      toggleHelp();
+      return;
+    }
     var input = document.getElementById('searchInput');
     if (document.activeElement === input) {
       input.value = '';
@@ -1715,7 +1989,288 @@ document.addEventListener('keydown', function(e) {
       input.blur();
     }
   }
+  // ? toggles help (when not typing in an input)
+  if (e.key === '?' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+    toggleHelp();
+  }
+  // Cmd/Ctrl+Z for undo
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey && document.activeElement.tagName !== 'INPUT') {
+    e.preventDefault();
+    undoLast();
+  }
 });
+
+/* ================================================================
+   UNDO
+   ================================================================ */
+function undoLast() {
+  // Undo last staged rejection first, then last staged change
+  var rejArr = Array.from(stagedRejections);
+  if (rejArr.length > 0) {
+    var lastRej = rejArr[rejArr.length - 1];
+    stagedRejections.delete(lastRej);
+    updateStagingBar();
+    renderAll();
+    return;
+  }
+  var keys = Object.keys(stagedChanges);
+  if (keys.length === 0) return;
+  var lastKey = keys[keys.length - 1];
+  unstageChange({stopPropagation: function(){}}, lastKey);
+}
+
+/* ================================================================
+   BATCH APPLY
+   ================================================================ */
+function applyAllSuggestions() {
+  if (!analysis) return;
+  var count = 0;
+
+  // Stage orphan → epic matches
+  if (analysis.declared_epics) {
+    analysis.declared_epics.forEach(function(e) {
+      getMatchedOrphansForEpic(e.identifier).forEach(function(mo) {
+        stageReparent(mo.identifier, e.identifier);
+        expandedNodes.add(e.identifier);
+        count++;
+      });
+    });
+  }
+
+  if (count === 0) {
+    showToast('info', 'No suggestions to stage.');
+    return;
+  }
+
+  renderAll();
+  showToast('info', 'Staged ' + count + ' suggestions — review and Save all when ready');
+}
+
+/* ================================================================
+   STAGING
+   ================================================================ */
+function stageReparent(childId, newParentId) {
+  var ticket = ticketsById[childId];
+  if (!ticket) return;
+  // If already staged, keep the original oldParent
+  var oldParent = stagedChanges[childId]
+    ? stagedChanges[childId].oldParent
+    : ticket.parent_identifier;
+  // If reverting to original parent, just unstage
+  if (newParentId === oldParent) {
+    delete stagedChanges[childId];
+    ticket.parent_identifier = oldParent;
+  } else {
+    stagedChanges[childId] = {
+      newParent: newParentId,
+      oldParent: oldParent,
+      type: 'reparent',
+      description: childId + ' → ' + (newParentId || 'root'),
+    };
+    ticket.parent_identifier = newParentId;
+  }
+  updateStagingBar();
+}
+
+function unstageChange(event, childId) {
+  event.stopPropagation();
+  var change = stagedChanges[childId];
+  if (!change) return;
+  var ticket = ticketsById[childId];
+  if (ticket) ticket.parent_identifier = change.oldParent;
+  delete stagedChanges[childId];
+  updateStagingBar();
+  renderAll();
+}
+
+function discardAllStaged() {
+  Object.keys(stagedChanges).forEach(function(childId) {
+    var change = stagedChanges[childId];
+    var ticket = ticketsById[childId];
+    if (ticket) ticket.parent_identifier = change.oldParent;
+  });
+  stagedChanges = {};
+  stagedRejections = new Set();
+  updateStagingBar();
+  renderAll();
+  showToast('info', 'All staged changes discarded');
+}
+
+async function commitAllStaged() {
+  var entries = Object.entries(stagedChanges);
+  var rejections = Array.from(stagedRejections);
+  if (entries.length === 0 && rejections.length === 0) return;
+
+  var btn = document.getElementById('commitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  var successCount = 0;
+  var failCount = 0;
+  var failedIds = [];
+
+  // Commit reparents to Linear
+  for (var i = 0; i < entries.length; i++) {
+    var childId = entries[i][0];
+    var change = entries[i][1];
+    try {
+      var res = await fetch(API + '/api/v1/linear/tickets/' + childId, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent: change.newParent || null }),
+      });
+      if (res.ok) {
+        successCount++;
+        delete stagedChanges[childId];
+      } else {
+        failCount++;
+        failedIds.push(childId);
+      }
+    } catch (e) {
+      failCount++;
+      failedIds.push(childId);
+    }
+  }
+
+  // Persist rejections to config API
+  var rejectionsFailed = false;
+  if (rejections.length > 0) {
+    try {
+      // Merge with existing persisted rejections
+      var allRejected = Array.from(persistedRejections);
+      rejections.forEach(function(id) {
+        if (allRejected.indexOf(id) === -1) allRejected.push(id);
+      });
+      var cfgRes = await fetch(API + '/api/v1/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: 'epics_police',
+          key: 'rejected_suggestions',
+          value: allRejected,
+        }),
+      });
+      if (cfgRes.ok) {
+        rejections.forEach(function(id) { persistedRejections.add(id); });
+        stagedRejections = new Set();
+      } else {
+        rejectionsFailed = true;
+      }
+    } catch (e) {
+      rejectionsFailed = true;
+    }
+  }
+
+  // Refresh data from API
+  try {
+    var refreshRes = await fetchJSON(API + '/api/v1/linear?limit=5000');
+    if (refreshRes && refreshRes.items) {
+      allTickets = filterIgnored(refreshRes.items);
+      rebuildIndex();
+      // Re-apply any still-staged (failed) changes locally
+      failedIds.forEach(function(id) {
+        var change = stagedChanges[id];
+        var ticket = ticketsById[id];
+        if (change && ticket) ticket.parent_identifier = change.newParent;
+      });
+    }
+    dataLoadedAt = new Date();
+  } catch (e) { /* render with what we have */ }
+
+  btn.disabled = false;
+  btn.textContent = 'Save all';
+  updateStagingBar();
+  renderAll();
+
+  var parts = [];
+  if (successCount > 0) parts.push(successCount + ' linked');
+  if (rejections.length > 0 && !rejectionsFailed) parts.push(rejections.length + ' rejected');
+  if (failCount > 0) parts.push(failCount + ' failed');
+  if (rejectionsFailed) parts.push('rejections failed to save');
+  var hasErrors = failCount > 0 || rejectionsFailed;
+  showToast(hasErrors ? 'info' : 'success', 'Saved: ' + parts.join(', '));
+}
+
+function updateStagingBar() {
+  var bar = document.getElementById('stagingBar');
+  var applyCount = Object.keys(stagedChanges).length;
+  var rejectCount = stagedRejections.size;
+  var total = applyCount + rejectCount;
+  document.getElementById('stagingCount').textContent = total;
+  var parts = [];
+  if (applyCount) parts.push(applyCount + ' accepted');
+  if (rejectCount) parts.push(rejectCount + ' rejected');
+  document.getElementById('stagingDetail').textContent = parts.join(', ');
+  bar.classList.toggle('visible', total > 0);
+  document.body.classList.toggle('staging-active', total > 0);
+}
+
+/* ================================================================
+   HELP POPOVER
+   ================================================================ */
+function toggleHelp() {
+  var popover = document.getElementById('helpPopover');
+  var btn = document.getElementById('helpBtn');
+  var isVisible = popover.classList.contains('visible');
+  popover.classList.toggle('visible', !isVisible);
+  btn.classList.toggle('active', !isVisible);
+}
+
+// Close help when clicking outside
+document.addEventListener('click', function(e) {
+  var popover = document.getElementById('helpPopover');
+  var btn = document.getElementById('helpBtn');
+  if (popover && popover.classList.contains('visible') && !popover.contains(e.target) && e.target !== btn) {
+    popover.classList.remove('visible');
+    btn.classList.remove('active');
+  }
+});
+
+/* ================================================================
+   TOAST WITH UNDO
+   ================================================================ */
+function showToastWithUndo(type, message) {
+  var container = document.getElementById('toastContainer');
+  var toast = document.createElement('div');
+  toast.className = 'toast ' + type;
+  toast.innerHTML = '<span>' + escapeHtml(message) + '</span><span class="toast-undo" onclick="undoLast(); dismissToast(this)">Undo</span><span class="toast-dismiss" onclick="dismissToast(this)">&times;</span>';
+  container.appendChild(toast);
+
+  setTimeout(function() {
+    if (toast.parentNode) {
+      toast.style.animation = 'toastOut 0.25s ease-out forwards';
+      setTimeout(function() {
+        if (toast.parentNode) toast.remove();
+      }, 250);
+    }
+  }, 8000);
+}
+
+/* ================================================================
+   HUMANIZE ERRORS
+   ================================================================ */
+function humanizeError(status) {
+  if (status === 400) return 'Invalid request — check the ticket data.';
+  if (status === 404) return 'Ticket not found in Linear.';
+  if (status === 429) return 'Too many requests — wait a moment and retry.';
+  if (status >= 500) return 'Server error — the API may be restarting.';
+  return 'Unexpected error (HTTP ' + status + ').';
+}
+
+/* ================================================================
+   DATA FRESHNESS
+   ================================================================ */
+function renderFreshness() {
+  var el = document.getElementById('dataFreshness');
+  if (!el || !dataLoadedAt) return;
+  var ago = Math.round((Date.now() - dataLoadedAt.getTime()) / 60000);
+  var label = ago < 1 ? 'synced just now' : 'synced ' + ago + 'm ago';
+  var cls = ago < 10 ? 'fresh' : ago < 30 ? 'stale' : 'very-stale';
+  el.className = 'staleness ' + cls;
+  el.textContent = label;
+}
+
+setInterval(renderFreshness, 60000);
 
 /* ================================================================
    INIT

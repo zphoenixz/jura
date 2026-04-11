@@ -12,6 +12,7 @@ Apps: Management API (FastAPI + PostgreSQL, Docker Compose).
 ```
 jura                                    # Main CLI (bash, macOS bash 3.2 compatible)
 .jura/<workspace>.json                  # Per-workspace settings (port, source_dir, include) — tracked
+.claude/skills/epics-police/            # Epics Police skill (moved from apps/management-api/)
 .env                                    # Runtime config only (gitignored)
 .env.example                            # Documented config template
 .openviking/plugin/mcp_bridge.py        # MCP server (OV search/read/list, port parameterized)
@@ -21,6 +22,7 @@ jura                                    # Main CLI (bash, macOS bash 3.2 compati
 .openviking/plugin/browse.py            # Interactive memory explorer
 .openviking/manifests/                  # Per-workspace sync state (gitignored)
 apps/management-api/                    # FastAPI + PostgreSQL backend (Docker Compose)
+apps/management-api/static/             # Bundled UI files (epics-police.html, volume-mounted)
 ```
 
 Plugins are shared infrastructure. Each consuming workspace
@@ -102,7 +104,7 @@ Key endpoints: `POST /api/v1/{slack,linear,meets,epics}/fetch?week=YYYY-MM-DD` t
 
 ### Skills
 
-The **Epics Police** skill lives at `apps/management-api/.claude/skills/epics-police/`. Invoke with `/epics-police` when working from this repo. It fetches Linear/epics/people from the API, runs deterministic + LLM matching, pushes analysis to `POST /api/v1/epics-police/analysis`, and opens `http://localhost:8100/epics-police`. No local file output.
+The **Epics Police** skill lives at `.claude/skills/epics-police/`. Invoke with `/epics-police` from the repo root. It fetches Linear/epics/people from the API, runs deterministic + LLM matching, pushes analysis to `POST /api/v1/epics-police/analysis`, and opens `http://localhost:8100/epics-police`. The interactive UI is bundled at `apps/management-api/static/epics-police.html` and served by the API (volume-mounted for live editing). No local file output.
 
 ## Dependencies
 

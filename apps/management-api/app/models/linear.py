@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -32,6 +32,9 @@ class LinearTicket(Base):
     points: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cycle_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     cycle_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    in_cycle: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
     parent_identifier: Mapped[str | None] = mapped_column(String(50), nullable=True)
     child_identifiers: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     attachments: Mapped[dict | None] = mapped_column(JSONB, nullable=True)

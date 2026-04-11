@@ -34,6 +34,7 @@ class LinearTicketRead(BaseModel):
     points: int | None = None
     cycle_number: int | None = None
     cycle_name: str | None = None
+    in_cycle: bool = True
     parent_identifier: str | None = None
     child_identifiers: Any | None = None
     attachments: Any | None = None

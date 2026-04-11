@@ -16,12 +16,16 @@ LINEAR_API = "https://api.linear.app/graphql"
 
 PRIORITY_MAP = {0: "No Priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
 STATUS_TYPE_TO_CATEGORY = {
-    "unstarted": "todo", "backlog": "todo", "triage": "todo",
-    "started": "in_progress", "completed": "done", "canceled": "discarded",
+    "unstarted": "todo",
+    "backlog": "todo",
+    "triage": "todo",
+    "started": "in_progress",
+    "completed": "done",
+    "canceled": "discarded",
 }
 
-QUERY_TEAM = 'query Team($name: String!) { teams(filter: { name: { eq: $name } }) { nodes { id name } } }'
-QUERY_ACTIVE_CYCLE = 'query ActiveCycle($teamId: String!) { team(id: $teamId) { activeCycle { id number name startsAt endsAt } } }'
+QUERY_TEAM = "query Team($name: String!) { teams(filter: { name: { eq: $name } }) { nodes { id name } } }"
+QUERY_ACTIVE_CYCLE = "query ActiveCycle($teamId: String!) { team(id: $teamId) { activeCycle { id number name startsAt endsAt } } }"
 QUERY_CYCLES_BY_DATE = """
 query CyclesByDate($teamId: String!, $endsBefore: DateTimeOrDuration!, $startsAfter: DateTimeOrDuration!) {
   team(id: $teamId) {
@@ -51,13 +55,35 @@ query CycleIssues($cycleId: String!, $after: String) {
 }
 """
 
-QUERY_USER = 'query User($id: String!) { user(id: $id) { id name email displayName active } }'
+QUERY_ISSUES_BY_NUMBER = """
+query IssuesByNumber($teamId: ID!, $numbers: [Float!]!, $after: String) {
+  issues(filter: { team: { id: { eq: $teamId } }, number: { in: $numbers } }, first: 250, after: $after) {
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      id identifier title description priority estimate url updatedAt createdAt
+      state { name type }
+      assignee { id name email }
+      labels { nodes { name } }
+      parent { identifier }
+      children { nodes { identifier } }
+    }
+  }
+}
+"""
+
+QUERY_USER = (
+    "query User($id: String!) { user(id: $id) { id name email displayName active } }"
+)
 
 
 async def graphql(query: str, variables: dict) -> dict:
     response = await resilient_request(
-        "POST", LINEAR_API,
-        headers={"Content-Type": "application/json", "Authorization": settings.linear_api_key},
+        "POST",
+        LINEAR_API,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": settings.linear_api_key,
+        },
         json={"query": query, "variables": variables},
     )
     data = response.json()
@@ -68,6 +94,7 @@ async def graphql(query: str, variables: dict) -> dict:
 
 async def _find_cycle(team_id: str, monday: date, sunday: date) -> dict | None:
     from datetime import timedelta
+
     # Only use active cycle if the requested week contains today
     today = date.today()
     if monday <= today <= sunday:
@@ -76,9 +103,14 @@ async def _find_cycle(team_id: str, monday: date, sunday: date) -> dict | None:
         if cycle:
             return cycle
     # Historical or fallback: find cycle by date range
-    data = await graphql(QUERY_CYCLES_BY_DATE, {
-        "teamId": team_id, "startsAfter": monday.isoformat(), "endsBefore": sunday.isoformat(),
-    })
+    data = await graphql(
+        QUERY_CYCLES_BY_DATE,
+        {
+            "teamId": team_id,
+            "startsAfter": monday.isoformat(),
+            "endsBefore": sunday.isoformat(),
+        },
+    )
     cycles = data.get("team", {}).get("cycles", {}).get("nodes", [])
     return cycles[0] if cycles else None
 
@@ -98,6 +130,40 @@ async def _fetch_all_issues(cycle_id: str) -> list[dict]:
             after = page_info["endCursor"]
         else:
             break
+    return all_issues
+
+
+def _parse_issue_number(identifier: str) -> int | None:
+    """Extract the numeric part from an identifier like 'ABC-2114' → 2114."""
+    import re
+
+    m = re.search(r"-(\d+)$", identifier)
+    return int(m.group(1)) if m else None
+
+
+async def _fetch_issues_by_numbers(team_id: str, identifiers: list[str]) -> list[dict]:
+    """Fetch issues by team + number in batches of 50."""
+    numbers = [
+        n for ident in identifiers if (n := _parse_issue_number(ident)) is not None
+    ]
+    if not numbers:
+        return []
+    all_issues = []
+    for i in range(0, len(numbers), 50):
+        batch = numbers[i : i + 50]
+        after = None
+        while True:
+            variables: dict = {"teamId": team_id, "numbers": [float(n) for n in batch]}
+            if after:
+                variables["after"] = after
+            data = await graphql(QUERY_ISSUES_BY_NUMBER, variables)
+            issues_data = data.get("issues", {})
+            all_issues.extend(issues_data.get("nodes", []))
+            page_info = issues_data.get("pageInfo", {})
+            if page_info.get("hasNextPage") and page_info.get("endCursor"):
+                after = page_info["endCursor"]
+            else:
+                break
     return all_issues
 
 
@@ -163,7 +229,10 @@ async def _enrich_linear_people(db: AsyncSession, linear_user_ids: set[str]) -> 
 
                     if not other.linear_user_id:
                         other.linear_user_id = placeholder_linear_id
-                    if not other.display_name or other.display_name == placeholder_linear_id:
+                    if (
+                        not other.display_name
+                        or other.display_name == placeholder_linear_id
+                    ):
                         if real_name:
                             other.display_name = real_name
 
@@ -171,16 +240,24 @@ async def _enrich_linear_people(db: AsyncSession, linear_user_ids: set[str]) -> 
                     other_id = other.id
                     await db.flush()
                     await db.execute(
-                        update(SlackMessage).where(SlackMessage.person_id == placeholder_id).values(person_id=other_id)
+                        update(SlackMessage)
+                        .where(SlackMessage.person_id == placeholder_id)
+                        .values(person_id=other_id)
                     )
                     await db.execute(
-                        update(LinearTicket).where(LinearTicket.person_id == placeholder_id).values(person_id=other_id)
+                        update(LinearTicket)
+                        .where(LinearTicket.person_id == placeholder_id)
+                        .values(person_id=other_id)
                     )
                     await db.execute(
-                        update(LinearComment).where(LinearComment.person_id == placeholder_id).values(person_id=other_id)
+                        update(LinearComment)
+                        .where(LinearComment.person_id == placeholder_id)
+                        .values(person_id=other_id)
                     )
                     await db.execute(
-                        update(MeetingAttendee).where(MeetingAttendee.person_id == placeholder_id).values(person_id=other_id)
+                        update(MeetingAttendee)
+                        .where(MeetingAttendee.person_id == placeholder_id)
+                        .values(person_id=other_id)
                     )
                     await db.delete(person)
                     await db.flush()
@@ -196,7 +273,9 @@ async def _enrich_linear_people(db: AsyncSession, linear_user_ids: set[str]) -> 
             if merged:
                 continue
 
-            if real_name and (not person.display_name or person.display_name == person.linear_user_id):
+            if real_name and (
+                not person.display_name or person.display_name == person.linear_user_id
+            ):
                 person.display_name = real_name
                 updated += 1
         except Exception:
@@ -229,6 +308,28 @@ async def fetch_and_store_linear(
     cycle_name = cycle.get("name", f"Cycle {cycle_number}")
     issues = await _fetch_all_issues(cycle["id"])
 
+    # Chase direct relatives (parents/children) not in the cycle — 1 hop only
+    cycle_identifiers = {issue.get("identifier") for issue in issues}
+    missing_identifiers: set[str] = set()
+    for issue in issues:
+        parent_id = (issue.get("parent") or {}).get("identifier")
+        if parent_id and parent_id not in cycle_identifiers:
+            missing_identifiers.add(parent_id)
+        for child in issue.get("children", {}).get("nodes") or []:
+            child_id = child.get("identifier")
+            if child_id and child_id not in cycle_identifiers:
+                missing_identifiers.add(child_id)
+
+    related_issues: list[dict] = []
+    if missing_identifiers:
+        try:
+            related_issues = await _fetch_issues_by_numbers(
+                team_id, list(missing_identifiers)
+            )
+            warnings.append(f"Fetched {len(related_issues)} out-of-cycle relatives")
+        except Exception as e:
+            warnings.append(f"Failed to fetch out-of-cycle relatives: {e}")
+
     await db.execute(delete(LinearTicket).where(LinearTicket.week_id == week_id))
 
     ticket_count = 0
@@ -238,7 +339,9 @@ async def fetch_and_store_linear(
     for issue in issues:
         state = issue.get("state") or {}
         assignee = issue.get("assignee") or {}
-        labels = [l.get("name", "") for l in (issue.get("labels", {}).get("nodes") or [])]
+        labels = [
+            l.get("name", "") for l in (issue.get("labels", {}).get("nodes") or [])
+        ]
         parent = issue.get("parent") or {}
         children = issue.get("children", {}).get("nodes") or []
 
@@ -256,18 +359,33 @@ async def fetch_and_store_linear(
             )
 
         ticket = LinearTicket(
-            week_id=week_id, person_id=person.id if person else None,
-            linear_id=issue.get("id", ""), identifier=issue.get("identifier", ""),
-            title=issue.get("title", ""), description=issue.get("description"),
+            week_id=week_id,
+            person_id=person.id if person else None,
+            linear_id=issue.get("id", ""),
+            identifier=issue.get("identifier", ""),
+            title=issue.get("title", ""),
+            description=issue.get("description"),
             status=state.get("name", "Unknown"),
-            status_type=STATUS_TYPE_TO_CATEGORY.get(state.get("type", "unstarted"), "todo"),
+            status_type=STATUS_TYPE_TO_CATEGORY.get(
+                state.get("type", "unstarted"), "todo"
+            ),
             priority=issue.get("priority", 0) or 0,
-            priority_label=PRIORITY_MAP.get(issue.get("priority", 0) or 0, "No Priority"),
-            labels=labels if labels else None, points=issue.get("estimate"),
-            cycle_number=cycle_number, cycle_name=cycle_name,
+            priority_label=PRIORITY_MAP.get(
+                issue.get("priority", 0) or 0, "No Priority"
+            ),
+            labels=labels if labels else None,
+            points=issue.get("estimate"),
+            cycle_number=cycle_number,
+            cycle_name=cycle_name,
+            in_cycle=True,
             parent_identifier=parent.get("identifier"),
-            child_identifiers=[c.get("identifier") for c in children] if children else None,
-            attachments=[{"url": a.get("url"), "title": a.get("title")} for a in (issue.get("attachments", {}).get("nodes") or [])],
+            child_identifiers=(
+                [c.get("identifier") for c in children] if children else None
+            ),
+            attachments=[
+                {"url": a.get("url"), "title": a.get("title")}
+                for a in (issue.get("attachments", {}).get("nodes") or [])
+            ],
             url=issue.get("url"),
             linear_created_at=_parse_datetime(issue.get("createdAt")),
             linear_updated_at=_parse_datetime(issue.get("updatedAt")),
@@ -276,7 +394,7 @@ async def fetch_and_store_linear(
         await db.flush()
         ticket_count += 1
 
-        for c in (issue.get("comments", {}).get("nodes") or []):
+        for c in issue.get("comments", {}).get("nodes") or []:
             user = c.get("user") or {}
             comment_person = None
             if user.get("id") or user.get("email") or user.get("name"):
@@ -290,13 +408,68 @@ async def fetch_and_store_linear(
                     linear_user_id=uid,
                 )
             comment = LinearComment(
-                ticket_id=ticket.id, linear_comment_id=c.get("id"),
+                ticket_id=ticket.id,
+                linear_comment_id=c.get("id"),
                 person_id=comment_person.id if comment_person else None,
-                author_name=user.get("name", "Unknown"), body=c.get("body", ""),
+                author_name=user.get("name", "Unknown"),
+                body=c.get("body", ""),
                 linear_created_at=_parse_datetime(c.get("createdAt")),
             )
             db.add(comment)
             comment_count += 1
+
+    # Store out-of-cycle relatives (no comments — they're structural bridges)
+    for issue in related_issues:
+        state = issue.get("state") or {}
+        assignee = issue.get("assignee") or {}
+        labels = [
+            l.get("name", "") for l in (issue.get("labels", {}).get("nodes") or [])
+        ]
+        parent = issue.get("parent") or {}
+        children = issue.get("children", {}).get("nodes") or []
+
+        person = None
+        if assignee.get("id") or assignee.get("email") or assignee.get("name"):
+            uid = assignee.get("id")
+            if uid:
+                encountered_user_ids.add(uid)
+            person = await resolve_person(
+                db,
+                email=assignee.get("email") or None,
+                display_name=assignee.get("name") or uid,
+                linear_user_id=uid,
+            )
+
+        ticket = LinearTicket(
+            week_id=week_id,
+            person_id=person.id if person else None,
+            linear_id=issue.get("id", ""),
+            identifier=issue.get("identifier", ""),
+            title=issue.get("title", ""),
+            description=issue.get("description"),
+            status=state.get("name", "Unknown"),
+            status_type=STATUS_TYPE_TO_CATEGORY.get(
+                state.get("type", "unstarted"), "todo"
+            ),
+            priority=issue.get("priority", 0) or 0,
+            priority_label=PRIORITY_MAP.get(
+                issue.get("priority", 0) or 0, "No Priority"
+            ),
+            labels=labels if labels else None,
+            points=issue.get("estimate"),
+            cycle_number=cycle_number,
+            cycle_name=cycle_name,
+            in_cycle=False,
+            parent_identifier=parent.get("identifier"),
+            child_identifiers=(
+                [c.get("identifier") for c in children] if children else None
+            ),
+            url=issue.get("url"),
+            linear_created_at=_parse_datetime(issue.get("createdAt")),
+            linear_updated_at=_parse_datetime(issue.get("updatedAt")),
+        )
+        db.add(ticket)
+        ticket_count += 1
 
     await db.flush()
 

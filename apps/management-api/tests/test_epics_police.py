@@ -42,10 +42,10 @@ async def test_store_overwrites_previous(client):
 
 
 @pytest.mark.asyncio
-async def test_ui_returns_404_when_no_html(client):
+async def test_ui_returns_html(client):
     response = await client.get("/epics-police")
-    assert response.status_code == 404
-    assert "not found" in response.text.lower()
+    assert response.status_code == 200
+    assert "text/html" in response.headers.get("content-type", "")
 
 
 @pytest.mark.asyncio

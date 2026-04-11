@@ -198,7 +198,11 @@ async def update_ticket(
             raise HTTPException(status_code=404, detail={"error": error_str, "code": "not_found"})
         raise HTTPException(status_code=400, detail={"error": error_str, "code": "validation_error"})
 
-    return await _refetch_and_respond(db, target, ops)
+    return LinearMutationResponse(
+        target=target,
+        linear_ops=ops,
+        refreshed_at=datetime.now(timezone.utc),
+    )
 
 
 @router.post("/tickets")
@@ -215,4 +219,13 @@ async def create_new_ticket(
             detail={"error": str(e), "code": "validation_error"},
         )
 
-    return await _refetch_and_respond(db, target, ops)
+    response = await _refetch_and_respond(db, target, ops)
+
+    # Guard against Linear eventual consistency: if the newly created ticket
+    # didn't appear in the cycle refetch, fetch it individually and insert it.
+    if target and target != "unknown":
+        from app.services.linear_writer import _ensure_ticket_in_db
+        await _ensure_ticket_in_db(db, target)
+        await db.commit()
+
+    return response

@@ -11,7 +11,9 @@ from app.models.linear import LinearTicket
 from app.models.person import Person
 from app.schemas.linear import LinearMutationOp, LinearTicketCreate, LinearTicketPatch
 from app.services.config_service import get_config_value
-from app.services.linear_fetcher import graphql, QUERY_ACTIVE_CYCLE
+from app.services.linear_fetcher import (
+    graphql, QUERY_ACTIVE_CYCLE, STATUS_TYPE_TO_CATEGORY, PRIORITY_MAP, _parse_datetime,
+)
 from app.services.linear_lookups import (
     get_default_state_id,
     get_team_id,
@@ -209,23 +211,7 @@ async def patch_ticket(
         if new_parent_id and _detect_cycle(tickets_by_id, identifier, new_parent_id):
             raise ValueError(f"Setting parent of {identifier} to {new_parent_id} would create a cycle")
 
-        # Auto-promote old children only when children field is NOT also set
-        if not children_explicitly_set:
-            old_children = target["child_identifiers"]
-            for child_id in old_children:
-                child_linear_id = await _resolve_linear_id(db, week_id, child_id)
-                promote_input: dict = {}
-                if old_parent_id:
-                    promote_input["parentId"] = await _resolve_linear_id(db, week_id, old_parent_id)
-                else:
-                    promote_input["parentId"] = None
-                mutations.append((
-                    "set_parent",
-                    MUTATION_ISSUE_UPDATE,
-                    {"id": child_linear_id, "input": promote_input},
-                ))
-
-        # Set the target's new parent
+        # Set the target's new parent (children stay with the ticket — Linear preserves them)
         parent_input: dict = {}
         if new_parent_id:
             parent_input["parentId"] = await _resolve_linear_id(db, week_id, new_parent_id)
@@ -352,3 +338,81 @@ async def create_ticket(
     new_identifier = op.identifier or "unknown"
 
     return new_identifier, [op]
+
+
+QUERY_ISSUE_FULL = """
+query IssueFull($identifier: String!) {
+  issueSearch(query: $identifier, first: 1) {
+    nodes {
+      id identifier title description priority estimate url updatedAt createdAt
+      state { name type }
+      assignee { id name email }
+      labels { nodes { name } }
+      parent { identifier }
+      children { nodes { identifier } }
+    }
+  }
+}
+"""
+
+
+async def _ensure_ticket_in_db(db: AsyncSession, identifier: str) -> None:
+    """If a ticket isn't in the current week's DB (e.g. due to Linear API
+    eventual consistency after create), fetch it from Linear and insert it."""
+    from app.services.people_service import resolve_person
+
+    monday, _ = resolve_week(None)
+    w = await get_or_create_week(db, monday)
+
+    existing = await db.execute(
+        select(LinearTicket).where(
+            LinearTicket.week_id == w.id,
+            LinearTicket.identifier == identifier,
+        )
+    )
+    if existing.scalar_one_or_none():
+        return  # Already in DB
+
+    data = await graphql(QUERY_ISSUE_FULL, {"identifier": identifier})
+    nodes = data.get("issueSearch", {}).get("nodes", [])
+    if not nodes:
+        return
+
+    issue = nodes[0]
+    state = issue.get("state") or {}
+    assignee = issue.get("assignee") or {}
+    labels = [l.get("name", "") for l in (issue.get("labels", {}).get("nodes") or [])]
+    parent = issue.get("parent") or {}
+    children = issue.get("children", {}).get("nodes") or []
+
+    person = None
+    if assignee.get("id") or assignee.get("email") or assignee.get("name"):
+        person = await resolve_person(
+            db,
+            email=assignee.get("email") or None,
+            display_name=assignee.get("name") or assignee.get("id"),
+            linear_user_id=assignee.get("id"),
+        )
+
+    ticket = LinearTicket(
+        week_id=w.id,
+        person_id=person.id if person else None,
+        linear_id=issue.get("id", ""),
+        identifier=issue.get("identifier", ""),
+        title=issue.get("title", ""),
+        description=issue.get("description"),
+        status=state.get("name", "Unknown"),
+        status_type=STATUS_TYPE_TO_CATEGORY.get(state.get("type", "unstarted"), "todo"),
+        priority=issue.get("priority", 0) or 0,
+        priority_label=PRIORITY_MAP.get(issue.get("priority", 0) or 0, "No Priority"),
+        labels=labels if labels else None,
+        points=issue.get("estimate"),
+        in_cycle=True,
+        parent_identifier=parent.get("identifier"),
+        child_identifiers=[c.get("identifier") for c in children] if children else None,
+        url=issue.get("url"),
+        linear_created_at=_parse_datetime(issue.get("createdAt")),
+        linear_updated_at=_parse_datetime(issue.get("updatedAt")),
+    )
+    db.add(ticket)
+    await db.flush()

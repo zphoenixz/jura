@@ -4,16 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Epics Police — Ticket Hierarchy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
 <style>
 /* ========== Reset & Base ========== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; overflow: hidden; }
 body {
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   color: #1f2937;
-  background: #fff;
+  background: #fafafa;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -21,7 +24,7 @@ body {
 .app { display: flex; flex-direction: column; height: 100vh; }
 .header {
   flex-shrink: 0;
-  padding: 16px 24px 12px;
+  padding: 10px 24px;
   border-bottom: 1px solid #e5e7eb;
   background: #fff;
   position: sticky;
@@ -33,10 +36,9 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 8px;
 }
 .header-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: #111827;
@@ -282,8 +284,8 @@ body {
   color: #1e40af;
 }
 .node-title.compliant-title {
-  font-size: 0.85em;
-  color: #999;
+  font-size: 0.92em;
+  color: #6b7280;
 }
 
 /* Assignee */
@@ -315,7 +317,7 @@ body {
 
 /* Labels */
 .label-tag {
-  display: none;
+  display: inline-flex;
   align-items: center;
   padding: 0 5px;
   border-radius: 3px;
@@ -325,7 +327,10 @@ body {
   flex-shrink: 0;
   height: 18px;
 }
-.node-row:hover .label-tag {
+.label-overflow {
+  display: none;
+}
+.node-row:hover .label-overflow {
   display: inline-flex;
 }
 
@@ -362,6 +367,13 @@ body {
   transition: opacity 0.15s ease;
 }
 .suggestion-ghost:hover { opacity: 1; }
+.suggestion-ghost.suggestion-rejected {
+  border-color: #e5e7eb;
+  border-left-color: #d1d5db;
+  background: #f9fafb;
+  opacity: 0.7;
+}
+.suggestion-ghost.suggestion-rejected:hover { opacity: 0.85; }
 .suggestion-ghost .suggestion-icon {
   font-size: 13px;
   color: #f59e0b;
@@ -541,6 +553,277 @@ body {
   border-top-color: #2563eb;
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* ========== Fullscreen Loading Overlay ========== */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.5s;
+}
+.loading-overlay.hiding {
+  opacity: 0;
+  visibility: hidden;
+}
+.loading-overlay.hidden {
+  display: none;
+}
+.loading-card {
+  width: 380px;
+  padding: 40px;
+}
+.loading-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.loading-badge {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.loading-badge svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.loading-brand-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f1f5f9;
+  letter-spacing: -0.03em;
+}
+
+.loading-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 28px;
+}
+.loading-step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: #475569;
+  transition: color 0.2s ease;
+}
+.loading-step-item.active {
+  color: #e2e8f0;
+}
+.loading-step-item.done {
+  color: #64748b;
+}
+.step-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1.5px solid #334155;
+  transition: all 0.2s ease;
+}
+.loading-step-item.active .step-indicator {
+  border-color: #2563eb;
+  background: #1e3a5f;
+}
+.loading-step-item.active .step-indicator::after {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  animation: stepPulse 1.2s ease-in-out infinite;
+}
+@keyframes stepPulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+.loading-step-item.done .step-indicator {
+  border-color: #22c55e;
+  background: #14532d;
+}
+.loading-step-item.done .step-indicator::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2 6l3 3 5-5' stroke='%2322c55e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+.step-label { flex: 1; }
+
+.loading-bar {
+  height: 3px;
+  background: #1e293b;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.loading-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.loading-bar-fill.indeterminate {
+  width: 30% !important;
+  animation: loadingSlide 1.2s ease-in-out infinite;
+}
+@keyframes loadingSlide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.loading-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+}
+.loading-pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
+}
+
+/* Loading error state */
+.loading-overlay.error .loading-bar-fill {
+  background: #ef4444;
+  width: 100% !important;
+}
+.loading-overlay.error .loading-step-item.active .step-indicator {
+  border-color: #ef4444;
+  background: #450a0a;
+}
+.loading-overlay.error .loading-step-item.active .step-indicator::after {
+  background: #ef4444;
+  animation: none;
+}
+.loading-error-msg {
+  display: none;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  font-size: 12px;
+  color: #fca5a5;
+  line-height: 1.5;
+}
+.loading-overlay.error .loading-error-msg {
+  display: block;
+}
+
+/* ========== Operation Overlay (post-load) ========== */
+.operation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+}
+.operation-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+}
+.operation-card {
+  width: 340px;
+  padding: 36px;
+}
+.operation-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.operation-brand .loading-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.operation-brand .loading-badge svg {
+  width: 16px;
+  height: 16px;
+}
+.operation-brand-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.operation-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.operation-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #334155;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.operation-text {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.operation-bar {
+  height: 3px;
+  background: #1e293b;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.operation-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #3b82f6);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.operation-bar-fill.indeterminate {
+  width: 30% !important;
+  animation: loadingSlide 1.2s ease-in-out infinite;
+}
+.operation-footer {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #475569;
+}
+.operation-pct {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #64748b;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -747,6 +1030,35 @@ body {
 }
 .staged-badge .unstage-x:hover { opacity: 1; }
 
+/* ========== Multi-Select ========== */
+.node-row.is-selected {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+.node-row.is-selected:hover {
+  background: #dbeafe;
+}
+.select-checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  accent-color: #2563eb;
+  cursor: pointer;
+  margin: 0;
+}
+.multi-drag-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
 .staging-bar {
   position: fixed;
   bottom: 0;
@@ -792,6 +1104,72 @@ body {
 }
 .btn-staged-discard:hover { background: #f5f3ff; }
 
+/* ========== Author Picker ========== */
+.author-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 12px;
+  color: #6b7280;
+}
+.author-picker select {
+  padding: 2px 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  color: #374151;
+  max-width: 220px;
+}
+.author-picker select:focus {
+  outline: none;
+  border-color: #7c3aed;
+}
+
+/* ========== Quick Create Form ========== */
+.quick-form {
+  display: none;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid #fcd34d;
+  gap: 8px;
+}
+.quick-form.visible { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; }
+.quick-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.quick-form-field label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #92400e;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.quick-form-field input,
+.quick-form-field select {
+  padding: 4px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  color: #374151;
+  min-width: 120px;
+}
+.quick-form-field input:focus,
+.quick-form-field select:focus {
+  outline: none;
+  border-color: #7c3aed;
+  box-shadow: 0 0 0 2px rgba(124,58,237,0.1);
+}
+.quick-form-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
 /* ========== Utility ========== */
 .hidden { display: none !important; }
 .flex-gap-4 { display: flex; align-items: center; gap: 4px; }
@@ -830,9 +1208,162 @@ body {
   border-radius: 6px;
   z-index: 5;
 }
+/* ========== Sidebar Layout ========== */
+.main-content { display: flex; flex: 1; overflow: hidden; }
+.sidebar {
+  width: 300px; flex-shrink: 0; overflow-y: auto;
+  border-right: 1px solid #e5e7eb; background: #f3f4f6; padding: 16px;
+  scrollbar-width: thin; scrollbar-color: #d1d5db transparent;
+}
+.sidebar::-webkit-scrollbar { width: 5px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+.sidebar-section {
+  margin-bottom: 20px;
+  animation: sidebarFadeIn 0.3s ease both;
+}
+.sidebar-section:nth-child(1) { animation-delay: 0s; }
+.sidebar-section:nth-child(2) { animation-delay: 0.05s; }
+.sidebar-section:nth-child(3) { animation-delay: 0.1s; }
+.sidebar-section:nth-child(4) { animation-delay: 0.15s; }
+.sidebar-section:nth-child(5) { animation-delay: 0.2s; }
+@keyframes sidebarFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sidebar-section-title {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: #6b7280; margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-section-count { font-size: 11px; font-weight: 600; color: #9ca3af; }
+.compliance-card {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 4px;
+}
+.compliance-big { display: flex; align-items: baseline; gap: 6px; margin-bottom: 8px; }
+.compliance-number {
+  font-size: 36px; font-weight: 800; font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em; line-height: 1;
+  animation: numberFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes numberFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sidebar-section-desc {
+  font-size: 11px; color: #9ca3af; margin-top: -4px; margin-bottom: 8px; line-height: 1.4;
+}
+.compliance-number.good { color: #10b981; }
+.compliance-number.warn { color: #f59e0b; }
+.compliance-number.bad { color: #ef4444; }
+.compliance-pct { font-size: 14px; font-weight: 600; color: #9ca3af; }
+.compliance-bar-wrap {
+  height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden; margin-bottom: 10px;
+}
+.compliance-fill {
+  height: 100%; border-radius: 3px;
+  animation: barFill 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+}
+@keyframes barFill {
+  from { width: 0%; }
+}
+.compliance-fill.good { background: #10b981; }
+.compliance-fill.warn { background: #f59e0b; }
+.compliance-fill.bad { background: #ef4444; }
+.compliance-detail { display: flex; justify-content: space-between; font-size: 12px; color: #6b7280; }
+.compliance-detail strong { font-weight: 600; color: #374151; }
+.sidebar-item {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px;
+  border-radius: 5px; font-size: 12px; color: #374151;
+  cursor: pointer; transition: background 0.1s ease; margin-bottom: 2px;
+}
+.sidebar-item:hover { background: #e5e7eb; }
+.sidebar-item .identifier { font-size: 10px; }
+.sidebar-item-title {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sidebar-item-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 1px 6px; border-radius: 10px; font-size: 10px; font-weight: 600; flex-shrink: 0;
+}
+.sidebar-item-badge.amber { background: #fef3c7; color: #92400e; }
+.sidebar-item-badge.blue { background: #dbeafe; color: #1e40af; }
+.sidebar-proposed {
+  background: #fff; border: 1px dashed #fbbf24; border-left: 3px solid #f59e0b;
+  border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;
+  cursor: pointer; transition: background 0.1s ease;
+}
+.sidebar-proposed:hover { background: #fffbeb; transform: translateX(2px); }
+.sidebar-proposed-title {
+  font-size: 12px; font-weight: 600; color: #92400e; margin-bottom: 2px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sidebar-proposed-title::after {
+  content: '\2192'; font-size: 11px; color: #d97706; opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sidebar-proposed:hover .sidebar-proposed-title::after { opacity: 1; }
+.sidebar-proposed-meta { font-size: 11px; color: #b45309; }
+.epic-child-summary {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px;
+  border-radius: 10px; font-size: 11px; font-weight: 500;
+  color: #6b7280; background: #f3f4f6; flex-shrink: 0;
+}
+.epic-child-summary .summary-suggestions { color: #f59e0b; font-weight: 600; }
+@keyframes navFlash {
+  0% { background: #fef08a; }
+  100% { background: transparent; }
+}
+.nav-flash {
+  animation: navFlash 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (max-width: 900px) {
+  .sidebar { display: none; }
+  .header-actions { flex-wrap: wrap; }
+  .filter-tabs { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  .header { padding: 12px 16px 8px; }
+  .tree-container { padding: 8px 16px 80px; }
+  .header-top { flex-wrap: wrap; }
+  .search-box { min-width: 160px; flex: 1; }
+}
 </style>
 </head>
 <body>
+
+<div class="operation-overlay" id="operationOverlay">
+  <div class="operation-card">
+    <div class="operation-brand">
+      <div class="loading-badge"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/><path d="M8 12l3 3 5-5"/></svg></div>
+      <span class="operation-brand-label">Epics Police</span>
+    </div>
+    <div class="operation-status">
+      <div class="operation-spinner"></div>
+      <div class="operation-text" id="operationText">Working...</div>
+    </div>
+    <div class="operation-bar"><div class="operation-bar-fill indeterminate" id="operationBarFill"></div></div>
+    <div class="operation-footer"><span id="operationDetail"></span><span class="operation-pct" id="operationPct"></span></div>
+  </div>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-card">
+    <div class="loading-brand">
+      <div class="loading-badge"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/><path d="M8 12l3 3 5-5"/></svg></div>
+      <span class="loading-brand-text">Epics Police</span>
+    </div>
+    <div class="loading-steps" id="loadingSteps">
+      <div class="loading-step-item" data-step="fetch"><div class="step-indicator"></div><span class="step-label">Fetching tickets &amp; analysis</span></div>
+      <div class="loading-step-item" data-step="config"><div class="step-indicator"></div><span class="step-label">Processing configuration</span></div>
+      <div class="loading-step-item" data-step="index"><div class="step-indicator"></div><span class="step-label">Building ticket index</span></div>
+      <div class="loading-step-item" data-step="render"><div class="step-indicator"></div><span class="step-label">Rendering interface</span></div>
+    </div>
+    <div class="loading-bar"><div class="loading-bar-fill indeterminate" id="loadingBarFill"></div></div>
+    <div class="loading-footer"><span id="loadingDetail">Connecting...</span><span class="loading-pct" id="loadingPct"></span></div>
+    <div class="loading-error-msg" id="loadingError"></div>
+  </div>
+</div>
 
 <div class="app" id="app">
   <div class="header">
@@ -866,28 +1397,30 @@ body {
             <p style="margin-bottom:6px"><strong>Drag &amp; drop</strong> tickets to reparent them. Drop on a ticket to nest, or above/below to reorder.</p>
             <div class="help-shortcuts">
               <strong>Shortcuts</strong><br>
-              <kbd>&#8984;K</kbd> Focus search &nbsp; <kbd>Esc</kbd> Clear search &nbsp; <kbd>?</kbd> Toggle this help
+              <kbd>&#8984;K</kbd> Focus search &nbsp; <kbd>Esc</kbd> Clear selection / search &nbsp; <kbd>?</kbd> Toggle this help<br>
+              <kbd>&#8984;Click</kbd> Multi-select &nbsp; <kbd>Shift+Click</kbd> Range select &nbsp; Drag selected to move all
             </div>
           </div>
         </div>
       </div>
     </div>
-    <div class="stats-bar" id="statsBar">
-      <span class="stat"><span class="stat-value" id="statCompliance">--</span>% compliance</span>
-      <span class="stat-sep">|</span>
-      <span class="stat"><span class="stat-value" id="statCompliant">--</span>/<span class="stat-value" id="statTotal">--</span> features</span>
-      <span class="stat-sep">|</span>
-      <span class="stat"><span class="stat-value" id="statTickets">--</span> tickets</span>
-      <span class="stat-sep">|</span>
-      <span class="stat"><span class="stat-value warn" id="statSuggestions">--</span> suggestions</span>
+    <div class="meta-line" id="metaLine">
+      <span id="metaText"></span>
+      <span class="author-picker">
+        Acting as: <select id="authorPicker" onchange="saveAuthor(this.value)">
+          <option value="">Select yourself...</option>
+        </select>
+      </span>
     </div>
-    <div class="meta-line" id="metaLine"></div>
   </div>
 
-  <div class="tree-container" id="treeContainer">
+  <div class="main-content">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="tree-container" id="treeContainer">
     <div class="tree-loading" id="loadingState">
       <span class="spinner"></span>&nbsp;&nbsp;Loading tickets...
     </div>
+  </div>
   </div>
 </div>
 
@@ -912,6 +1445,7 @@ const API = 'http://localhost:8100';
 let allTickets = [];           // flat array of LinearTicket (after filtering)
 let ticketsById = {};          // identifier -> ticket
 let peopleById = {};           // person_id -> display_name
+let peopleEmailById = {};      // person_id -> email
 let analysis = null;           // epics-police analysis or null
 let ignoredPersonIds = new Set(); // person_ids to filter out
 let expandedNodes = new Set(); // identifiers of expanded nodes
@@ -919,6 +1453,8 @@ let searchQuery = '';
 let activeFilter = 'all';     // 'all' | 'orphans' | 'epics'
 let draggedId = null;          // identifier of node being dragged
 let dragDescendants = new Set();
+let selectedNodes = new Set();   // identifiers of multi-selected nodes
+let lastClickedId = null;        // for shift-click range selection
 let undoStack = [];            // [{childId, oldParent, description}]
 let dataLoadedAt = null;       // Date when data was last fetched
 
@@ -927,20 +1463,25 @@ let stagedChanges = {};        // {childId: {newParent, oldParent, type, descrip
                                // type: 'reparent' | 'rename'
 let stagedRejections = new Set();   // orphan identifiers staged for rejection
 let persistedRejections = new Set(); // already saved rejections loaded from API
+let defaultAuthorId = '';            // person_id to auto-assign on create
 
 /* ================================================================
    BOOT
    ================================================================ */
 async function init() {
+  showSkeleton();
+  setLoadingStep('fetch', 'Connecting to API...', 5);
   try {
-    const [ticketData, analysisData, peopleData, ignoredData, rejectedData] = await Promise.allSettled([
+    const [ticketData, analysisData, peopleData, ignoredData, rejectedData, authorData] = await Promise.allSettled([
       fetchJSON(API + '/api/v1/linear?limit=5000'),
       fetchJSON(API + '/api/v1/epics-police/analysis'),
       fetchJSON(API + '/api/v1/people?limit=5000'),
       fetchJSON(API + '/api/v1/config/epics_police/ignored_assignees'),
       fetchJSON(API + '/api/v1/config/epics_police/rejected_suggestions'),
+      fetchJSON(API + '/api/v1/config/epics_police/default_author'),
     ]);
 
+    setLoadingStep('config', 'Applying filters and settings...', 40);
     // Load ignored assignees first so we can filter tickets
     if (ignoredData.status === 'fulfilled' && ignoredData.value) {
       loadIgnoredAssignees(ignoredData.value);
@@ -954,30 +1495,42 @@ async function init() {
       }
     }
 
+    // Load default author
+    if (authorData.status === 'fulfilled' && authorData.value) {
+      defaultAuthorId = authorData.value.value || '';
+    }
+
+    var ticketCount = (ticketData.value && ticketData.value.items) ? ticketData.value.items.length : 0;
+    setLoadingStep('index', 'Indexing ' + ticketCount + ' tickets...', 55);
     if (ticketData.status === 'fulfilled' && ticketData.value) {
       allTickets = filterIgnored(ticketData.value.items || []);
     } else {
       throw new Error('Failed to load tickets');
     }
 
+    setLoadingStep('index', 'Loading analysis data...', 70);
     if (analysisData.status === 'fulfilled' && analysisData.value) {
       analysis = analysisData.value;
+      normalizeAnalysis();
     }
 
+    setLoadingStep('index', 'Resolving people...', 80);
     if (peopleData.status === 'fulfilled' && peopleData.value) {
       (peopleData.value.items || []).forEach(function(p) {
         peopleById[p.id] = p.display_name;
+        if (p.email) peopleEmailById[p.id] = p.email;
       });
     }
 
+    setLoadingStep('render', 'Building hierarchy tree...', 92);
     dataLoadedAt = new Date();
     rebuildIndex();
+    populateAuthorPicker();
     autoExpandEpics();
     renderAll();
+    hideProgress();
   } catch (err) {
-    document.getElementById('loadingState').className = 'tree-error';
-    document.getElementById('loadingState').textContent = 'Could not load tickets. Is the API running?';
-    showToast('error', 'Could not load data. Is the API running on localhost:8100?');
+    showLoadingError('Could not load data — ' + (err.message || 'unknown error') + '. Make sure the API is running on localhost:8100.');
   }
 }
 
@@ -1020,11 +1573,21 @@ function rebuildIndex() {
 }
 
 function autoExpandEpics() {
-  allTickets.forEach(function(t) {
-    if (isEpicPrefixed(t.title)) {
-      expandedNodes.add(t.identifier);
-    }
-  });
+  if (!analysis) return;
+  // Expand epics that have matched orphan suggestions
+  if (analysis.declared_epics) {
+    analysis.declared_epics.forEach(function(e) {
+      if (getMatchedOrphansForEpic(e.identifier).length > 0) {
+        expandedNodes.add(e.identifier);
+      }
+    });
+  }
+  // Expand implicit candidates (they have rename suggestions)
+  if (analysis.implicit_candidates) {
+    analysis.implicit_candidates.forEach(function(ic) {
+      expandedNodes.add(ic.identifier);
+    });
+  }
 }
 
 /* ================================================================
@@ -1091,11 +1654,11 @@ function getMatchedOrphansForEpic(epicId) {
   if (!analysis || !analysis.declared_epics) return [];
   var epic = analysis.declared_epics.find(function(e) { return e.identifier === epicId; });
   if (!epic || !epic.matched_orphans) return [];
-  // Filter out already-parented, staged-rejected, and persisted-rejected suggestions
+  // Filter out already-parented and persisted-rejected suggestions
+  // (staged rejections stay visible with strikethrough until committed)
   return epic.matched_orphans.filter(function(mo) {
     var ticket = ticketsById[mo.identifier];
     if (!ticket) return false;
-    if (stagedRejections.has(mo.identifier)) return false;
     if (persistedRejections.has(mo.identifier)) return false;
     return ticket.parent_identifier !== epicId;
   });
@@ -1110,7 +1673,8 @@ function getProposedEpics() {
   if (!analysis || !analysis.proposed_epics) return [];
   // Filter out proposed epics where ALL children already have parents
   return analysis.proposed_epics.filter(function(pe) {
-    return pe.children && pe.children.some(function(c) {
+    var kids = pe.children || pe.members || [];
+    return kids.length > 0 && kids.some(function(c) {
       var t = ticketsById[c.identifier];
       return t && !t.parent_identifier;
     });
@@ -1246,9 +1810,156 @@ function escapeHtml(str) {
 /* ================================================================
    RENDER
    ================================================================ */
+function normalizeAnalysis() {
+  if (!analysis) return;
+  if (analysis.proposed_epics) {
+    analysis.proposed_epics.forEach(function(pe) {
+      if (!pe.children && pe.members) pe.children = pe.members;
+      if (!pe.cluster_confidence && pe.avg_confidence) pe.cluster_confidence = pe.avg_confidence;
+    });
+  }
+}
+
+function renderSidebar() {
+  var sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  var html = '';
+
+  // Compliance card — always compute live from current tree state
+  var pct = 0, compliant = 0, orphaned = 0, ftotal = 0;
+  allTickets.forEach(function(t) {
+    if (!isEpicPrefixed(t.title)) {
+      ftotal++;
+      if (hasEpicAncestor(t.identifier)) compliant++;
+    }
+  });
+  orphaned = ftotal - compliant;
+  pct = ftotal > 0 ? Math.round(compliant / ftotal * 100) : 0;
+  var band = pct >= 80 ? 'good' : pct >= 50 ? 'warn' : 'bad';
+
+  html += '<div class="sidebar-section">';
+  html += '<div class="compliance-card">';
+  html += '<div class="compliance-big"><span class="compliance-number ' + band + '">' + pct + '</span><span class="compliance-pct">% compliant</span></div>';
+  html += '<div class="compliance-bar-wrap"><div class="compliance-fill ' + band + '" style="width:' + pct + '%"></div></div>';
+  html += '<div class="compliance-detail"><span><strong>' + compliant + '</strong> under epics</span><span><strong>' + orphaned + '</strong> orphaned</span></div>';
+  html += '</div></div>';
+
+  // Epics with suggestions
+  var epicsWithSugg = [];
+  if (analysis && analysis.declared_epics) {
+    analysis.declared_epics.forEach(function(e) {
+      var suggs = getMatchedOrphansForEpic(e.identifier);
+      if (suggs.length > 0) epicsWithSugg.push({ epic: e, count: suggs.length });
+    });
+  }
+  if (epicsWithSugg.length > 0) {
+    html += '<div class="sidebar-section">';
+    html += '<div class="sidebar-section-title">Epics with Suggestions <span class="sidebar-section-count">' + epicsWithSugg.length + '</span></div>';
+    html += '<div class="sidebar-section-desc">Orphan tickets matched to these epics. Click to review.</div>';
+    epicsWithSugg.forEach(function(item) {
+      html += '<div class="sidebar-item" onclick="navigateToNode(\'' + item.epic.identifier + '\')">';
+      html += '<span class="identifier epic-id" style="font-size:10px">' + escapeHtml(item.epic.identifier) + '</span>';
+      html += '<span class="sidebar-item-title">' + escapeHtml((item.epic.title || '').replace(/^\[EPIC\]\s*/, '')) + '</span>';
+      html += '<span class="sidebar-item-badge amber">' + item.count + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Proposed epics
+  var proposed = getProposedEpics();
+  if (proposed.length > 0) {
+    html += '<div class="sidebar-section">';
+    html += '<div class="sidebar-section-title">Proposed Epics <span class="sidebar-section-count">' + proposed.length + '</span></div>';
+    html += '<div class="sidebar-section-desc">New epics suggested by clustering orphan tickets.</div>';
+    proposed.forEach(function(pe) {
+      var kids = pe.children || pe.members || [];
+      html += '<div class="sidebar-proposed" onclick="scrollToProposed(\'' + escapeHtml(pe.proposed_title).replace(/'/g, "\\'") + '\')">';
+      html += '<div class="sidebar-proposed-title">' + escapeHtml(pe.proposed_title) + '</div>';
+      html += '<div class="sidebar-proposed-meta">' + kids.length + ' tickets &middot; ' + (pe.cluster_confidence || pe.avg_confidence || '?') + '% conf</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // Implicit candidates (promote to [EPIC])
+  var implicit = (analysis && analysis.implicit_candidates) ? analysis.implicit_candidates : [];
+  if (implicit.length > 0) {
+    html += '<div class="sidebar-section">';
+    html += '<div class="sidebar-section-title">Promote to [EPIC] <span class="sidebar-section-count">' + implicit.length + '</span></div>';
+    html += '<div class="sidebar-section-desc">Tickets with enough children to be epics but missing the [EPIC] prefix.</div>';
+    implicit.slice(0, 15).forEach(function(ic) {
+      html += '<div class="sidebar-item" onclick="navigateToNode(\'' + ic.identifier + '\')">';
+      html += '<span class="identifier normal-id" style="font-size:10px">' + escapeHtml(ic.identifier) + '</span>';
+      html += '<span class="sidebar-item-title">' + escapeHtml(ic.title) + '</span>';
+      html += '<span class="sidebar-item-badge blue">' + (ic.descendant_count || 0) + '</span>';
+      html += '</div>';
+    });
+    if (implicit.length > 15) {
+      html += '<div style="padding:4px 8px;font-size:11px;color:#9ca3af;text-align:center">+ ' + (implicit.length - 15) + ' more</div>';
+    }
+    html += '</div>';
+  }
+
+  // Unparented features
+  var unparented = (analysis && analysis.unparented) ? analysis.unparented : [];
+  if (unparented.length > 0) {
+    html += '<div class="sidebar-section">';
+    html += '<div class="sidebar-section-title">Unparented Features <span class="sidebar-section-count">' + unparented.length + '</span></div>';
+    html += '<div class="sidebar-section-desc">Features with no epic parent and no strong match.</div>';
+    unparented.slice(0, 20).forEach(function(item) {
+      html += '<div class="sidebar-item" onclick="navigateToNode(\'' + item.identifier + '\')">';
+      html += '<span class="identifier normal-id" style="font-size:10px">' + escapeHtml(item.identifier) + '</span>';
+      html += '<span class="sidebar-item-title">' + escapeHtml(item.title) + '</span>';
+      html += '</div>';
+    });
+    if (unparented.length > 20) {
+      html += '<div style="padding:4px 8px;font-size:11px;color:#9ca3af;text-align:center">+ ' + (unparented.length - 20) + ' more</div>';
+    }
+    html += '</div>';
+  }
+
+  sidebar.innerHTML = html;
+}
+
+function navigateToNode(identifier) {
+  var t = ticketsById[identifier];
+  if (!t) return;
+  var current = t.parent_identifier;
+  while (current && ticketsById[current]) {
+    expandedNodes.add(current);
+    current = ticketsById[current].parent_identifier;
+  }
+  expandedNodes.add(identifier);
+  renderTree();
+  requestAnimationFrame(function() {
+    var row = document.querySelector('.node-row[data-id="' + identifier + '"]');
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.classList.remove('nav-flash');
+      void row.offsetWidth; // reflow to restart animation
+      row.classList.add('nav-flash');
+    }
+  });
+}
+
+function scrollToProposed(title) {
+  var cards = document.querySelectorAll('.proposed-card');
+  cards.forEach(function(card) {
+    var titleEl = card.querySelector('.proposed-title');
+    if (titleEl && titleEl.textContent === title) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.remove('nav-flash');
+      void card.offsetWidth;
+      card.classList.add('nav-flash');
+    }
+  });
+}
+
 function renderAll() {
   renderStats();
   renderFilterCounts();
+  renderSidebar();
   renderTree();
 }
 
@@ -1269,47 +1980,19 @@ function renderFilterCounts() {
 }
 
 function renderStats() {
-  var total = allTickets.length;
-  var featureTotal = 0, featureCompliant = 0;
-
-  if (analysis && analysis.compliance_snapshot) {
-    var snap = analysis.compliance_snapshot;
-    featureTotal = snap.feature_total || 0;
-    featureCompliant = snap.feature_compliant || 0;
-    var pct = snap.feature_compliance_pct || 0;
-    var el = document.getElementById('statCompliance');
-    el.textContent = pct;
-    el.className = 'stat-value ' + (pct >= 80 ? 'good' : pct >= 50 ? 'warn' : 'bad');
-  } else {
-    // Compute from live data
-    allTickets.forEach(function(t) {
-      if (!isEpicPrefixed(t.title)) {
-        featureTotal++;
-        if (hasEpicAncestor(t.identifier)) featureCompliant++;
+  // Meta line: analysis info only (update text span, preserve author picker)
+  var metaTextEl = document.getElementById('metaText');
+  if (metaTextEl) {
+    metaTextEl.textContent = '';
+    if (analysis && analysis.meta) {
+      var m = analysis.meta;
+      var text = 'Week ' + (m.week_label || '') + ' (' + (m.month_dir || '') + ')';
+      if (m.generated_at) {
+        var d = new Date(m.generated_at);
+        text += ' — ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
       }
-    });
-    var pct = featureTotal > 0 ? Math.round(featureCompliant / featureTotal * 100) : 0;
-    var el = document.getElementById('statCompliance');
-    el.textContent = pct;
-    el.className = 'stat-value ' + (pct >= 80 ? 'good' : pct >= 50 ? 'warn' : 'bad');
-  }
-
-  document.getElementById('statCompliant').textContent = featureCompliant;
-  document.getElementById('statTotal').textContent = featureTotal;
-  document.getElementById('statTickets').textContent = total;
-  document.getElementById('statSuggestions').textContent = countSuggestions();
-
-  // Meta line: analysis info only
-  var metaEl = document.getElementById('metaLine');
-  metaEl.textContent = '';
-  if (analysis && analysis.meta) {
-    var m = analysis.meta;
-    var text = 'Analysis: ' + (m.week_label || '') + ' (' + (m.month_dir || '') + ')';
-    if (m.generated_at) {
-      var d = new Date(m.generated_at);
-      text += ' — ran ' + d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+      metaTextEl.textContent = text;
     }
-    metaEl.textContent = text;
   }
 
   // Data freshness: next to Refresh button
@@ -1387,6 +2070,7 @@ function renderNode(ticket, depth) {
   var isStaged = !!stagedChanges[id];
 
   var nodeClasses = ['node-row'];
+  if (selectedNodes.has(id)) nodeClasses.push('is-selected');
   if (isStaged) nodeClasses.push('is-staged');
   else if (isEpic) nodeClasses.push('is-epic');
   else if (isOrphan) nodeClasses.push('is-orphan');
@@ -1411,11 +2095,15 @@ function renderNode(ticket, depth) {
 
   // Node row
   html += '<div class="' + nodeClasses.join(' ') + '" data-id="' + id + '" draggable="true" ';
+  html += 'onclick="onNodeClick(event, \'' + id + '\')" ';
   html += 'ondragstart="onDragStart(event, \'' + id + '\')" ';
   html += 'ondragend="onDragEnd(event)" ';
   html += 'ondragover="onNodeDragOver(event, \'' + id + '\')" ';
   html += 'ondragleave="onNodeDragLeave(event)" ';
   html += 'ondrop="onNodeDrop(event, \'' + id + '\')">';
+
+  // Selection checkbox
+  html += '<input type="checkbox" class="select-checkbox" ' + (selectedNodes.has(id) ? 'checked' : '') + ' onclick="onCheckboxClick(event, \'' + id + '\')" title="Select for multi-drag">';
 
   // Drag handle
   html += '<span class="drag-handle" title="Drag to reorder">&#x2847;</span>';
@@ -1434,6 +2122,16 @@ function renderNode(ticket, depth) {
   html += '<span class="' + titleClasses.join(' ') + '" title="' + escapeHtml(ticket.title || '') + '">';
   html += highlightText(ticket.title || '(untitled)', searchQuery);
   html += '</span>';
+
+  // Epic child summary badge (when collapsed)
+  if (isEpic && !isExpanded && (children.length > 0 || matchedOrphans.length > 0)) {
+    html += '<span class="epic-child-summary">';
+    html += children.length + (children.length === 1 ? ' child' : ' children');
+    if (matchedOrphans.length > 0) {
+      html += ' &middot; <span class="summary-suggestions">' + matchedOrphans.length + ' suggestion' + (matchedOrphans.length === 1 ? '' : 's') + '</span>';
+    }
+    html += '</span>';
+  }
 
   // Implicit rename badge
   if (implicitCandidate) {
@@ -1463,9 +2161,10 @@ function renderNode(ticket, depth) {
 
   // Labels
   if (ticket.labels && ticket.labels.length > 0) {
-    ticket.labels.forEach(function(label) {
+    ticket.labels.forEach(function(label, idx) {
       var lc = getLabelColor(label);
-      html += '<span class="label-tag" style="background:' + lc.bg + ';color:' + lc.color + '">' + escapeHtml(label) + '</span>';
+      var cls = idx < 2 ? 'label-tag' : 'label-tag label-overflow';
+      html += '<span class="' + cls + '" style="background:' + lc.bg + ';color:' + lc.color + '">' + escapeHtml(label) + '</span>';
     });
   }
 
@@ -1504,13 +2203,22 @@ function renderNode(ticket, depth) {
 }
 
 function renderSuggestionGhost(orphan, matchInfo, epicId) {
-  var html = '<div class="suggestion-ghost" data-suggestion="' + orphan.identifier + '">';
-  html += '<span class="suggestion-icon">&#x1F4A1;</span>';
-  html += '<a href="' + escapeHtml(orphan.url || '#') + '" target="_blank" class="identifier normal-id">' + escapeHtml(orphan.identifier) + '</a>';
-  html += '<span class="suggestion-text" title="' + escapeHtml(orphan.title) + '">' + escapeHtml(orphan.title) + '</span>';
-  html += '<span class="suggestion-conf">' + (matchInfo.confidence || '?') + '%</span>';
-  html += '<button class="btn btn-sm btn-amber" onclick="applySuggestion(event, \'' + orphan.identifier + '\', \'' + epicId + '\')">Apply</button>';
-  html += '<button class="btn btn-sm" onclick="rejectSuggestion(event, \'' + orphan.identifier + '\')" style="color:#9ca3af">Reject</button>';
+  var isRejected = stagedRejections.has(orphan.identifier);
+  var cls = 'suggestion-ghost' + (isRejected ? ' suggestion-rejected' : '');
+  var html = '<div class="' + cls + '" data-suggestion="' + orphan.identifier + '">';
+  if (isRejected) {
+    html += '<span class="suggestion-icon" style="opacity:0.4">&#x1F6AB;</span>';
+    html += '<a href="' + escapeHtml(orphan.url || '#') + '" target="_blank" class="identifier normal-id" style="text-decoration:line-through;opacity:0.5">' + escapeHtml(orphan.identifier) + '</a>';
+    html += '<span class="suggestion-text" style="text-decoration:line-through;opacity:0.5">' + escapeHtml(orphan.title) + '</span>';
+    html += '<span class="staged-badge">rejected <span class="unstage-x" onclick="unrejectSuggestion(event, \'' + orphan.identifier + '\')" title="Undo rejection">&times;</span></span>';
+  } else {
+    html += '<span class="suggestion-icon">&#x1F4A1;</span>';
+    html += '<a href="' + escapeHtml(orphan.url || '#') + '" target="_blank" class="identifier normal-id">' + escapeHtml(orphan.identifier) + '</a>';
+    html += '<span class="suggestion-text" title="' + escapeHtml(orphan.title) + '">' + escapeHtml(orphan.title) + '</span>';
+    html += '<span class="suggestion-conf">' + (matchInfo.confidence || '?') + '%</span>';
+    html += '<button class="btn btn-sm btn-amber" onclick="applySuggestion(event, \'' + orphan.identifier + '\', \'' + epicId + '\')">Apply</button>';
+    html += '<button class="btn btn-sm" onclick="rejectSuggestion(event, \'' + orphan.identifier + '\')" style="color:#9ca3af">Reject</button>';
+  }
   html += '</div>';
   return html;
 }
@@ -1530,11 +2238,36 @@ function renderProposedSection(proposed) {
     if (pe.mirrors_notion_epic) html += ' | Mirrors: ' + escapeHtml(pe.mirrors_notion_epic);
     html += '</div>';
     html += '</div>';
-    html += '<button class="btn btn-sm btn-primary" onclick="applyProposedEpic(event, ' + idx + ')">Create & Apply</button>';
+    // Check if any member is an implicit candidate — show Promote instead of Create
+    var hasPromotable = (pe.children || pe.members || []).some(function(m) { return !!getImplicitCandidate(m.identifier); });
+    var btnLabel = hasPromotable ? 'Promote & Apply' : 'Create & Apply';
+    html += '<button class="btn btn-sm btn-primary" onclick="showCreateForm(event, ' + idx + ')">' + btnLabel + '</button>';
+    html += '</div>';
+
+    // Quick create form (hidden by default)
+    html += '<div class="quick-form" id="createForm' + idx + '">';
+    html += '<div class="quick-form-field" style="flex:1"><label>Title</label><input type="text" id="createTitle' + idx + '" value="' + escapeHtml(pe.proposed_title) + '"></div>';
+    html += '<div class="quick-form-field"><label>Assignee</label><select id="createAssignee' + idx + '"><option value="">None</option>';
+    Object.keys(peopleEmailById).sort(function(a, b) { return peopleEmailById[a].localeCompare(peopleEmailById[b]); }).forEach(function(pid) {
+      var sel = (pid === defaultAuthorId) ? ' selected' : '';
+      html += '<option value="' + pid + '"' + sel + '>' + escapeHtml(peopleEmailById[pid]) + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="quick-form-field"><label>Status</label><select id="createStatus' + idx + '">';
+    html += '<option value="">Default</option><option value="In Progress" selected>In Progress</option><option value="Todo">Todo</option><option value="Done">Done</option>';
+    html += '</select></div>';
+    html += '<div class="quick-form-field"><label>Priority</label><select id="createPriority' + idx + '">';
+    html += '<option value="0">No Priority</option><option value="1">Urgent</option><option value="2">High</option><option value="3" selected>Medium</option><option value="4">Low</option>';
+    html += '</select></div>';
+    html += '<div class="quick-form-field"><label>Points</label><input type="number" id="createPoints' + idx + '" min="0" max="99" style="width:60px" value="0"></div>';
+    html += '<div class="quick-form-actions">';
+    html += '<button class="btn btn-sm" onclick="hideCreateForm(' + idx + ')">Cancel</button>';
+    html += '<button class="btn btn-sm btn-staged-save" onclick="applyProposedEpic(event, ' + idx + ')">' + (hasPromotable ? 'Promote' : 'Create') + '</button>';
+    html += '</div>';
     html += '</div>';
 
     html += '<div class="proposed-children">';
-    (pe.children || []).forEach(function(c) {
+    (pe.children || pe.members || []).forEach(function(c) {
       var t = ticketsById[c.identifier];
       if (!t) return;
       // Skip if already parented
@@ -1569,27 +2302,112 @@ function toggleExpand(event, identifier) {
 }
 
 /* ================================================================
+   MULTI-SELECT
+   ================================================================ */
+function onCheckboxClick(event, identifier) {
+  event.stopPropagation();
+  if (event.shiftKey && lastClickedId) {
+    selectRange(lastClickedId, identifier);
+  } else {
+    toggleSelection(identifier);
+  }
+  lastClickedId = identifier;
+  renderTree();
+}
+
+function onNodeClick(event, identifier) {
+  var tag = event.target.tagName;
+  if (tag === 'A' || tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT') return;
+  if (event.target.classList.contains('expand-toggle') || event.target.classList.contains('unstage-x')) return;
+
+  if (event.shiftKey && lastClickedId) {
+    event.preventDefault();
+    selectRange(lastClickedId, identifier);
+    lastClickedId = identifier;
+    renderTree();
+  } else if (event.metaKey || event.ctrlKey) {
+    toggleSelection(identifier);
+    lastClickedId = identifier;
+    renderTree();
+  }
+}
+
+function toggleSelection(identifier) {
+  if (selectedNodes.has(identifier)) {
+    selectedNodes.delete(identifier);
+  } else {
+    selectedNodes.add(identifier);
+  }
+}
+
+function selectRange(fromId, toId) {
+  var rows = document.querySelectorAll('.node-row[data-id]');
+  var ids = [];
+  rows.forEach(function(r) { ids.push(r.getAttribute('data-id')); });
+  var fromIdx = ids.indexOf(fromId);
+  var toIdx = ids.indexOf(toId);
+  if (fromIdx === -1 || toIdx === -1) return;
+  var start = Math.min(fromIdx, toIdx);
+  var end = Math.max(fromIdx, toIdx);
+  for (var i = start; i <= end; i++) {
+    selectedNodes.add(ids[i]);
+  }
+}
+
+function clearSelection() {
+  if (selectedNodes.size === 0) return;
+  selectedNodes.clear();
+  lastClickedId = null;
+  renderTree();
+}
+
+/* ================================================================
    DRAG & DROP
    ================================================================ */
 function onDragStart(event, identifier) {
-  draggedId = identifier;
-  dragDescendants = getDescendants(identifier);
+  // If dragging a selected node, drag all selected; otherwise drag only this one
+  if (selectedNodes.has(identifier) && selectedNodes.size > 1) {
+    draggedId = identifier;
+    dragDescendants = new Set();
+    selectedNodes.forEach(function(selId) {
+      dragDescendants.add(selId);
+      getDescendants(selId).forEach(function(d) { dragDescendants.add(d); });
+    });
+  } else {
+    draggedId = identifier;
+    dragDescendants = getDescendants(identifier);
+    dragDescendants.add(identifier);
+  }
 
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData('text/plain', identifier);
 
-  // Mark source node
-  requestAnimationFrame(function() {
-    var rows = document.querySelectorAll('.node-row[data-id="' + identifier + '"]');
-    rows.forEach(function(r) { r.classList.add('drag-source'); });
+  // Custom drag image when multi-dragging
+  if (selectedNodes.has(identifier) && selectedNodes.size > 1) {
+    var badge = document.createElement('div');
+    badge.className = 'multi-drag-badge';
+    badge.textContent = selectedNodes.size + ' tickets';
+    badge.style.position = 'absolute';
+    badge.style.top = '-1000px';
+    document.body.appendChild(badge);
+    event.dataTransfer.setDragImage(badge, badge.offsetWidth / 2, badge.offsetHeight / 2);
+    requestAnimationFrame(function() { badge.remove(); });
+  }
 
-    // Mark invalid targets (descendants + self)
+  // Mark source nodes
+  requestAnimationFrame(function() {
+    var idsToMark = (selectedNodes.has(identifier) && selectedNodes.size > 1) ? selectedNodes : new Set([identifier]);
+    idsToMark.forEach(function(selId) {
+      var rows = document.querySelectorAll('.node-row[data-id="' + selId + '"]');
+      rows.forEach(function(r) { r.classList.add('drag-source'); });
+    });
+
+    // Mark invalid targets
     dragDescendants.forEach(function(descId) {
       var descRows = document.querySelectorAll('.node-row[data-id="' + descId + '"]');
       descRows.forEach(function(r) { r.classList.add('invalid-target'); });
     });
 
-    // Show root drop zone
     var rdz = document.getElementById('rootDropZone');
     if (rdz) rdz.classList.add('active');
   });
@@ -1622,8 +2440,8 @@ function getDropZone(event, element) {
 function onNodeDragOver(event, targetId) {
   event.preventDefault();
 
-  // Prevent drop on self or descendants
-  if (targetId === draggedId || dragDescendants.has(targetId)) {
+  // Prevent drop on self, selected nodes, or their descendants
+  if (dragDescendants.has(targetId)) {
     event.dataTransfer.dropEffect = 'none';
     return;
   }
@@ -1650,15 +2468,35 @@ function onNodeDrop(event, targetId) {
   var zone = getDropZone(event, row);
   row.classList.remove('drop-target-on', 'drop-target-above', 'drop-target-below');
 
-  if (!draggedId || targetId === draggedId || dragDescendants.has(targetId)) return;
+  if (!draggedId || dragDescendants.has(targetId)) return;
+
+  // Determine which nodes to move
+  var idsToMove = (selectedNodes.has(draggedId) && selectedNodes.size > 1)
+    ? Array.from(selectedNodes)
+    : [draggedId];
+
+  // Filter out target and its ancestors to prevent cycles
+  idsToMove = idsToMove.filter(function(id) {
+    return id !== targetId && !getDescendants(id).has(targetId);
+  });
+  if (idsToMove.length === 0) return;
 
   if (zone === 'on') {
-    // Become child of target
-    moveToParent(draggedId, targetId);
+    idsToMove.forEach(function(id) {
+      stageReparent(id, targetId);
+      if (targetId) expandedNodes.add(targetId);
+    });
   } else {
-    // Become sibling (above or below target)
-    moveSibling(draggedId, targetId, zone);
+    var target = ticketsById[targetId];
+    if (!target) return;
+    var parentId = target.parent_identifier;
+    idsToMove.forEach(function(id) { stageReparent(id, parentId); });
+    if (parentId) expandedNodes.add(parentId);
   }
+
+  selectedNodes.clear();
+  lastClickedId = null;
+  renderAll();
 }
 
 function onRootDragOver(event) {
@@ -1679,10 +2517,21 @@ function onRootDrop(event) {
   if (rdz) rdz.classList.remove('drop-hover', 'active');
 
   if (!draggedId) return;
-  var ticket = ticketsById[draggedId];
-  if (!ticket || !ticket.parent_identifier) return;
 
-  moveToParent(draggedId, null);
+  var idsToMove = (selectedNodes.has(draggedId) && selectedNodes.size > 1)
+    ? Array.from(selectedNodes)
+    : [draggedId];
+
+  idsToMove.forEach(function(id) {
+    var ticket = ticketsById[id];
+    if (ticket && ticket.parent_identifier) {
+      stageReparent(id, null);
+    }
+  });
+
+  selectedNodes.clear();
+  lastClickedId = null;
+  renderAll();
 }
 
 /* ================================================================
@@ -1727,11 +2576,19 @@ function rejectSuggestion(event, orphanId) {
   renderAll();
 }
 
+function unrejectSuggestion(event, orphanId) {
+  event.stopPropagation();
+  stagedRejections.delete(orphanId);
+  updateStagingBar();
+  renderAll();
+}
+
 async function applyRename(event, identifier, newTitle) {
   event.stopPropagation();
   var btn = event.target;
   btn.disabled = true;
   btn.textContent = '...';
+  showOperationOverlay('Renaming to [EPIC]', 'Updating ' + identifier + ' in Linear...');
 
   // Decode the HTML-escaped title
   var div = document.createElement('div');
@@ -1750,11 +2607,9 @@ async function applyRename(event, identifier, newTitle) {
       throw new Error(err.error || 'HTTP ' + res.status);
     }
 
-    var data = await res.json();
-    if (data.items) {
-      allTickets = filterIgnored(data.items);
-      rebuildIndex();
-    }
+    // Update title locally
+    var ticket = ticketsById[identifier];
+    if (ticket) ticket.title = cleanTitle;
 
     // Remove from analysis implicit_candidates
     if (analysis && analysis.implicit_candidates) {
@@ -1763,13 +2618,26 @@ async function applyRename(event, identifier, newTitle) {
       });
     }
 
+    hideOperationOverlay();
     renderAll();
     showToast('success', identifier + ' renamed to [EPIC]');
   } catch (err) {
+    hideOperationOverlay();
     btn.disabled = false;
     btn.textContent = 'Apply';
     showToast('error', 'Could not rename ' + identifier + '. ' + err.message);
   }
+}
+
+function showCreateForm(event, proposedIdx) {
+  event.stopPropagation();
+  var form = document.getElementById('createForm' + proposedIdx);
+  if (form) form.classList.add('visible');
+}
+
+function hideCreateForm(proposedIdx) {
+  var form = document.getElementById('createForm' + proposedIdx);
+  if (form) form.classList.remove('visible');
 }
 
 async function applyProposedEpic(event, proposedIdx) {
@@ -1779,72 +2647,121 @@ async function applyProposedEpic(event, proposedIdx) {
   if (!pe) return;
 
   var btn = event.target;
+  var members = pe.children || pe.members || [];
 
-  // Confirmation gate
-  if (!btn.dataset.confirmed) {
-    btn.textContent = 'Confirm? Creates a real ticket';
-    btn.className = 'btn btn-sm btn-confirm';
-    btn.dataset.confirmed = 'pending';
-    setTimeout(function() {
-      if (btn.dataset.confirmed === 'pending') {
-        btn.textContent = 'Create & Apply';
-        btn.className = 'btn btn-sm btn-primary';
-        delete btn.dataset.confirmed;
-      }
-    }, 3000);
-    return;
+  // Read form values
+  var titleEl = document.getElementById('createTitle' + proposedIdx);
+  var assigneeEl = document.getElementById('createAssignee' + proposedIdx);
+  var statusEl = document.getElementById('createStatus' + proposedIdx);
+  var priorityEl = document.getElementById('createPriority' + proposedIdx);
+  var pointsEl = document.getElementById('createPoints' + proposedIdx);
+  var formTitle = titleEl ? titleEl.value.trim() : pe.proposed_title;
+  var formAssignee = assigneeEl && assigneeEl.value ? assigneeEl.value : null;
+  var formStatus = statusEl && statusEl.value ? statusEl.value : null;
+  var formPriority = priorityEl ? parseInt(priorityEl.value) : 3;
+  var formPoints = pointsEl && pointsEl.value ? parseInt(pointsEl.value) : null;
+
+  // Find if any member is already an implicit candidate (has children) — promote it instead of creating
+  var promotable = null;
+  members.forEach(function(m) {
+    if (promotable) return;
+    var ic = getImplicitCandidate(m.identifier);
+    if (ic) promotable = m.identifier;
+  });
+
+  // Add overlay to the proposed card
+  var card = btn.closest('.proposed-card');
+  if (card) {
+    card.style.position = 'relative';
+    card.insertAdjacentHTML('beforeend', '<div class="applying-overlay"><span class="spinner"></span></div>');
   }
-  delete btn.dataset.confirmed;
-
   btn.disabled = true;
-  btn.textContent = 'Creating...';
+  btn.textContent = promotable ? 'Promoting...' : 'Creating...';
+  showOperationOverlay(promotable ? 'Promoting to [EPIC]' : 'Creating Epic', promotable ? 'Renaming and linking children...' : 'Creating ticket in Linear...');
 
   try {
-    // Step 1: Create the epic ticket
-    var createRes = await fetch(API + '/api/v1/linear/tickets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: pe.proposed_title,
-        description: 'Auto-created by Epics Police. Reason: ' + (pe.reason || 'Clustered by analysis'),
-      }),
-    });
+    var epicId;
 
-    if (!createRes.ok) {
-      var err = await createRes.json().catch(function() { return {}; });
-      throw new Error(err.error || 'Failed to create epic');
+    if (promotable) {
+      // Rename the implicit candidate to [EPIC] with form values
+      var renamePatch = { title: formTitle };
+      if (formAssignee) renamePatch.assignee = formAssignee;
+      if (formStatus) renamePatch.status = formStatus;
+      if (formPriority != null) renamePatch.priority = formPriority;
+      if (formPoints != null) renamePatch.points = formPoints;
+      var renameRes = await fetch(API + '/api/v1/linear/tickets/' + promotable, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(renamePatch),
+      });
+      if (!renameRes.ok) {
+        var err = await renameRes.json().catch(function() { return {}; });
+        throw new Error(err.error || 'Failed to rename ' + promotable);
+      }
+      epicId = promotable;
+
+      // Remove from implicit_candidates in analysis
+      if (analysis && analysis.implicit_candidates) {
+        analysis.implicit_candidates = analysis.implicit_candidates.filter(function(ic) {
+          return ic.identifier !== promotable;
+        });
+      }
+    } else {
+      // Create a new ticket with form values
+      var createBody = { title: formTitle, priority: formPriority };
+      if (formAssignee) createBody.assignee = formAssignee;
+      if (formStatus) createBody.status = formStatus;
+      if (formPoints != null) createBody.points = formPoints;
+      var createRes = await fetch(API + '/api/v1/linear/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createBody),
+      });
+      if (!createRes.ok) {
+        var err = await createRes.json().catch(function() { return {}; });
+        throw new Error(err.error || 'Failed to create epic');
+      }
+      var createData = await createRes.json();
+      epicId = createData.target;
+      if (!epicId) throw new Error('No identifier returned from create');
     }
 
-    var createData = await createRes.json();
-    var newEpicId = createData.target;
-
-    if (!newEpicId) throw new Error('No identifier returned from create');
-
-    // Step 2: Assign children one by one
-    var orphanChildren = (pe.children || []).filter(function(c) {
-      var t = ticketsById[c.identifier];
-      return t && !t.parent_identifier;
+    // Directly PATCH orphan members as children of the epic (not staged — this is an atomic operation)
+    var childrenToLink = members.filter(function(m) {
+      if (m.identifier === epicId) return false;
+      var t = ticketsById[m.identifier];
+      if (!t) return false;
+      if (t.parent_identifier === epicId) return false;
+      return true;
     });
 
-    var failCount = 0;
-    for (var i = 0; i < orphanChildren.length; i++) {
+    var linkSuccess = 0;
+    var linkFail = 0;
+    for (var i = 0; i < childrenToLink.length; i++) {
       try {
-        var patchRes = await fetch(API + '/api/v1/linear/tickets/' + orphanChildren[i].identifier, {
+        var linkRes = await fetch(API + '/api/v1/linear/tickets/' + childrenToLink[i].identifier, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parent: newEpicId }),
+          body: JSON.stringify({ parent: epicId }),
         });
-        if (!patchRes.ok) failCount++;
+        if (linkRes.ok) linkSuccess++;
+        else linkFail++;
       } catch (e) {
-        failCount++;
+        linkFail++;
       }
     }
 
-    // Step 3: Refresh all data
+    // Refresh to pick up all changes
     var refreshRes = await fetchJSON(API + '/api/v1/linear?limit=5000');
     if (refreshRes && refreshRes.items) {
       allTickets = filterIgnored(refreshRes.items);
       rebuildIndex();
+      // Re-apply any pre-existing staged changes on refreshed data
+      Object.keys(stagedChanges).forEach(function(id) {
+        var change = stagedChanges[id];
+        var ticket = ticketsById[id];
+        if (change && ticket) ticket.parent_identifier = change.newParent;
+      });
     }
 
     // Remove from analysis
@@ -1854,17 +2771,26 @@ async function applyProposedEpic(event, proposedIdx) {
       });
     }
 
-    expandedNodes.add(newEpicId);
+    expandedNodes.add(epicId);
+    updateStagingBar();
     renderAll();
 
-    var msg = 'Created ' + newEpicId + ' with ' + (orphanChildren.length - failCount) + ' children';
-    if (failCount > 0) msg += ' (' + failCount + ' failed)';
-    showToast(failCount > 0 ? 'info' : 'success', msg);
+    hideOperationOverlay();
+    var verb = promotable ? 'Promoted ' + epicId : 'Created ' + epicId;
+    var parts = [verb];
+    if (linkSuccess > 0) parts.push(linkSuccess + ' children linked');
+    if (linkFail > 0) parts.push(linkFail + ' failed');
+    showToast(linkFail > 0 ? 'info' : 'success', parts.join(' — '));
   } catch (err) {
+    hideOperationOverlay();
     btn.disabled = false;
-    btn.textContent = 'Create & Apply';
+    btn.textContent = promotable ? 'Promote & Apply' : 'Create & Apply';
     btn.className = 'btn btn-sm btn-primary';
-    showToast('error', 'Could not create epic. ' + err.message);
+    if (card) {
+      var overlay = card.querySelector('.applying-overlay');
+      if (overlay) overlay.remove();
+    }
+    showToast('error', err.message);
   }
 }
 
@@ -1886,6 +2812,7 @@ async function refreshAll() {
   btn.disabled = true;
   icon.style.display = 'none';
   btn.insertAdjacentHTML('afterbegin', '<span class="spinner" id="refreshSpinner" style="margin-right:4px"></span>');
+  showOperationOverlay('Syncing from Linear', 'Fetching latest data...');
 
   var week = getCurrentWeekParam();
 
@@ -1897,6 +2824,7 @@ async function refreshAll() {
       throw new Error(fetchErr.error || humanizeError(fetchRes.status));
     }
 
+    updateOperationOverlay('Loading data...', 50);
     // Step 2: Read the now-fresh data
     var [ticketData, analysisData, peopleData, ignoredData] = await Promise.allSettled([
       fetchJSON(API + '/api/v1/linear?limit=5000'),
@@ -1913,19 +2841,25 @@ async function refreshAll() {
     }
     if (analysisData.status === 'fulfilled' && analysisData.value) {
       analysis = analysisData.value;
+      normalizeAnalysis();
     }
     if (peopleData.status === 'fulfilled' && peopleData.value) {
       peopleById = {};
+      peopleEmailById = {};
       (peopleData.value.items || []).forEach(function(p) {
         peopleById[p.id] = p.display_name;
+        if (p.email) peopleEmailById[p.id] = p.email;
       });
     }
 
+    updateOperationOverlay('Rendering...', 90);
     dataLoadedAt = new Date();
     rebuildIndex();
     renderAll();
+    hideOperationOverlay();
     showToast('success', 'Synced from Linear — ' + allTickets.length + ' tickets');
   } catch (err) {
+    hideOperationOverlay();
     showToast('error', 'Sync failed. ' + err.message);
   } finally {
     btn.disabled = false;
@@ -1974,11 +2908,15 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     document.getElementById('searchInput').focus();
   }
-  // Escape clears search or closes help
+  // Escape clears selection, search, or closes help
   if (e.key === 'Escape') {
     var popover = document.getElementById('helpPopover');
     if (popover && popover.classList.contains('visible')) {
       toggleHelp();
+      return;
+    }
+    if (selectedNodes.size > 0) {
+      clearSelection();
       return;
     }
     var input = document.getElementById('searchInput');
@@ -2103,7 +3041,16 @@ async function commitAllStaged() {
 
   var btn = document.getElementById('commitBtn');
   btn.disabled = true;
-  btn.textContent = 'Saving...';
+  var totalOps = entries.length + (rejections.length > 0 ? 1 : 0);
+  var completedOps = 0;
+
+  function updateCommitProgress() {
+    var pct = totalOps > 0 ? Math.round(completedOps / totalOps * 100) : 0;
+    btn.textContent = 'Saving ' + completedOps + '/' + totalOps + '...';
+    updateOperationOverlay('Saving ' + completedOps + ' of ' + totalOps + ' changes...', pct);
+  }
+  showOperationOverlay('Saving to Linear', 'Committing staged changes...');
+  updateCommitProgress();
 
   var successCount = 0;
   var failCount = 0;
@@ -2130,6 +3077,8 @@ async function commitAllStaged() {
       failCount++;
       failedIds.push(childId);
     }
+    completedOps++;
+    updateCommitProgress();
   }
 
   // Persist rejections to config API
@@ -2141,14 +3090,10 @@ async function commitAllStaged() {
       rejections.forEach(function(id) {
         if (allRejected.indexOf(id) === -1) allRejected.push(id);
       });
-      var cfgRes = await fetch(API + '/api/v1/config', {
-        method: 'POST',
+      var cfgRes = await fetch(API + '/api/v1/config/epics_police/rejected_suggestions', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          source: 'epics_police',
-          key: 'rejected_suggestions',
-          value: allRejected,
-        }),
+        body: JSON.stringify({ value: allRejected }),
       });
       if (cfgRes.ok) {
         rejections.forEach(function(id) { persistedRejections.add(id); });
@@ -2161,8 +3106,10 @@ async function commitAllStaged() {
     }
   }
 
-  // Refresh data from API
+  // Re-fetch from Linear into DB, then read fresh data
   try {
+    var week = getCurrentWeekParam();
+    await fetch(API + '/api/v1/linear/fetch?week=' + week, { method: 'POST' });
     var refreshRes = await fetchJSON(API + '/api/v1/linear?limit=5000');
     if (refreshRes && refreshRes.items) {
       allTickets = filterIgnored(refreshRes.items);
@@ -2177,6 +3124,7 @@ async function commitAllStaged() {
     dataLoadedAt = new Date();
   } catch (e) { /* render with what we have */ }
 
+  hideOperationOverlay();
   btn.disabled = false;
   btn.textContent = 'Save all';
   updateStagingBar();
@@ -2206,6 +3154,34 @@ function updateStagingBar() {
 }
 
 /* ================================================================
+   AUTHOR PICKER
+   ================================================================ */
+function populateAuthorPicker() {
+  var picker = document.getElementById('authorPicker');
+  if (!picker) return;
+  picker.innerHTML = '<option value="">Select yourself...</option>';
+  Object.keys(peopleEmailById).sort(function(a, b) {
+    return peopleEmailById[a].localeCompare(peopleEmailById[b]);
+  }).forEach(function(pid) {
+    var sel = (pid === defaultAuthorId) ? ' selected' : '';
+    picker.innerHTML += '<option value="' + pid + '"' + sel + '>' + escapeHtml(peopleEmailById[pid]) + '</option>';
+  });
+}
+
+async function saveAuthor(personId) {
+  defaultAuthorId = personId;
+  try {
+    await fetch(API + '/api/v1/config/epics_police/default_author', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: personId }),
+    });
+  } catch (e) {
+    // Silent — picker already updated locally
+  }
+}
+
+/* ================================================================
    HELP POPOVER
    ================================================================ */
 function toggleHelp() {
@@ -2224,6 +3200,14 @@ document.addEventListener('click', function(e) {
     popover.classList.remove('visible');
     btn.classList.remove('active');
   }
+});
+
+// Click empty space in tree to clear selection
+document.addEventListener('click', function(e) {
+  if (selectedNodes.size === 0) return;
+  if (e.target.closest('.node-row')) return;
+  if (e.target.closest('.header') || e.target.closest('.sidebar') || e.target.closest('.staging-bar')) return;
+  clearSelection();
 });
 
 /* ================================================================
@@ -2249,6 +3233,149 @@ function showToastWithUndo(type, message) {
 /* ================================================================
    HUMANIZE ERRORS
    ================================================================ */
+/* ================================================================
+   PROGRESS INDICATORS
+   ================================================================ */
+var loadingStepOrder = ['fetch', 'config', 'index', 'render'];
+var loadingCurrentStep = null;
+
+function setLoadingStep(stepName, detail, pct) {
+  var overlay = document.getElementById('loadingOverlay');
+  var fill = document.getElementById('loadingBarFill');
+  var pctEl = document.getElementById('loadingPct');
+  var detailEl = document.getElementById('loadingDetail');
+
+  // Show overlay if hidden
+  if (overlay.classList.contains('hidden') || overlay.classList.contains('hiding')) {
+    overlay.classList.remove('hidden', 'hiding');
+    overlay.style.opacity = '1';
+    overlay.style.visibility = 'visible';
+  }
+
+  // Update step indicators
+  var reachedCurrent = false;
+  loadingCurrentStep = stepName;
+  loadingStepOrder.forEach(function(s) {
+    var el = document.querySelector('.loading-step-item[data-step="' + s + '"]');
+    if (!el) return;
+    el.classList.remove('active', 'done');
+    if (s === stepName) {
+      el.classList.add('active');
+      reachedCurrent = true;
+    } else if (!reachedCurrent) {
+      el.classList.add('done');
+    }
+  });
+
+  if (detail) detailEl.textContent = detail;
+
+  if (pct == null) {
+    fill.classList.add('indeterminate');
+    pctEl.textContent = '';
+  } else {
+    fill.classList.remove('indeterminate');
+    fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    pctEl.textContent = Math.round(pct) + '%';
+  }
+}
+
+// Legacy compat — map old showProgress calls to setLoadingStep
+function showProgress(text, pct) {
+  var step = 'fetch';
+  if (pct >= 90) step = 'render';
+  else if (pct >= 55) step = 'index';
+  else if (pct >= 40) step = 'config';
+  setLoadingStep(step, text, pct);
+}
+
+function hideProgress() {
+  var overlay = document.getElementById('loadingOverlay');
+  var fill = document.getElementById('loadingBarFill');
+  var pctEl = document.getElementById('loadingPct');
+  var detailEl = document.getElementById('loadingDetail');
+
+  // Mark all steps done
+  document.querySelectorAll('.loading-step-item').forEach(function(el) {
+    el.classList.remove('active');
+    el.classList.add('done');
+  });
+
+  fill.classList.remove('indeterminate');
+  fill.style.width = '100%';
+  pctEl.textContent = '100%';
+  detailEl.textContent = 'Ready';
+
+  setTimeout(function() {
+    overlay.classList.add('hiding');
+    setTimeout(function() {
+      overlay.classList.add('hidden');
+    }, 500);
+  }, 400);
+}
+
+function showLoadingError(msg) {
+  var overlay = document.getElementById('loadingOverlay');
+  var errorEl = document.getElementById('loadingError');
+  var fill = document.getElementById('loadingBarFill');
+  var detailEl = document.getElementById('loadingDetail');
+
+  overlay.classList.add('error');
+  fill.classList.remove('indeterminate');
+  errorEl.textContent = msg || 'Could not connect to the API. Is it running on localhost:8100?';
+  detailEl.textContent = 'Connection failed';
+}
+
+function showSkeleton() {
+  // No-op: fullscreen overlay handles loading state
+}
+
+function showOperationOverlay(text, detail) {
+  var overlay = document.getElementById('operationOverlay');
+  var textEl = document.getElementById('operationText');
+  var detailEl = document.getElementById('operationDetail');
+  var pctEl = document.getElementById('operationPct');
+  var fill = document.getElementById('operationBarFill');
+  textEl.textContent = text || 'Working...';
+  detailEl.textContent = detail || '';
+  pctEl.textContent = '';
+  fill.classList.add('indeterminate');
+  fill.style.width = '30%';
+  overlay.classList.add('visible');
+}
+
+function updateOperationOverlay(text, pct) {
+  var textEl = document.getElementById('operationText');
+  var detailEl = document.getElementById('operationDetail');
+  var pctEl = document.getElementById('operationPct');
+  var fill = document.getElementById('operationBarFill');
+  if (text) textEl.textContent = text;
+  if (pct != null) {
+    fill.classList.remove('indeterminate');
+    fill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+    pctEl.textContent = Math.round(pct) + '%';
+    detailEl.textContent = text || '';
+  }
+}
+
+function hideOperationOverlay() {
+  var overlay = document.getElementById('operationOverlay');
+  var fill = document.getElementById('operationBarFill');
+  var pctEl = document.getElementById('operationPct');
+  // Flash complete
+  fill.classList.remove('indeterminate');
+  fill.style.width = '100%';
+  pctEl.textContent = '100%';
+  setTimeout(function() {
+    overlay.classList.remove('visible');
+    // Reset for next use
+    setTimeout(function() {
+      fill.style.width = '0%';
+      fill.classList.add('indeterminate');
+      pctEl.textContent = '';
+    }, 300);
+  }, 250);
+}
+
 function humanizeError(status) {
   if (status === 400) return 'Invalid request — check the ticket data.';
   if (status === 404) return 'Ticket not found in Linear.';

@@ -35,17 +35,15 @@ Workspace-specific config (`.openviking/ov.conf`, data, session state) stays per
 ./jura -w <workspace> "question"
 ./jura -s "session question"
 
-# Sync
-./jura sync                    # Incremental sync (default workspace)
-./jura sync --bootstrap        # Full re-ingest
-./jura sync --status           # Dry-run
-./jura sync -w <workspace>
-
-# Server
-./jura serve                   # Start all OV servers
-./jura serve --status          # Check what's running
-./jura serve --stop            # Stop all servers
-./jura serve -w <workspace>    # Start/stop/status for one workspace
+# OpenViking
+./jura ov status               # Show server status
+./jura ov restart              # Start or restart all OV servers
+./jura ov stop                 # Stop all servers
+./jura ov logs                 # Last 100 log lines
+./jura ov sync                 # Incremental sync (default workspace)
+./jura ov sync --bootstrap     # Full re-ingest
+./jura ov sync --status        # Dry-run
+./jura ov sync -w <workspace>  # Sync a specific workspace
 
 # Browse
 jura ls                        # List OV resources (default workspace)

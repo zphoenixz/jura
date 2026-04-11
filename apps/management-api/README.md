@@ -41,34 +41,6 @@ source .venv/bin/activate
 uvicorn app.main:app --reload --port 8100
 ```
 
-### Option C: Manual Setup
-
-If you prefer to control each step:
-
-```bash
-# 1. Environment
-cp .env.example .env           # Edit with your API keys
-
-# 2. Python
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# 3. Database
-docker compose up -d db        # PostgreSQL on port 5433
-
-# 4. Migrations
-alembic upgrade head           # Creates all tables
-
-# 5. Test database
-docker compose exec db psql -U mgmt -d management -c "CREATE DATABASE management_test"
-
-# 6. Start API
-uvicorn app.main:app --reload --port 8100
-
-# 7. Run tests
-pytest tests/ -v
-```
-
 ## Database Schema
 
 Alembic manages the schema. One migration (`alembic/versions/001_initial_tables.py`) creates all 11 tables.
@@ -92,16 +64,6 @@ Alembic manages the schema. One migration (`alembic/versions/001_initial_tables.
 | `meeting_attendees` | Attendees FK to meetings (CASCADE delete) and people |
 | `epics` | Notion epics with properties, markdown content, status |
 | `epic_sub_pages` | Sub-pages FK to epics (CASCADE delete) |
-
-### Adding New Migrations
-
-```bash
-# Generate a new migration from model changes
-alembic revision --autogenerate -m "add_new_column"
-
-# Apply
-alembic upgrade head
-```
 
 ## Required Config
 
@@ -473,9 +435,3 @@ Check container logs: `docker compose logs api`. Common causes:
 
 Historical week already has data. This is intentional. Only current week can be re-fetched.
 
-## Migration Scripts
-
-| Script | Purpose |
-|--------|---------|
-| `migrate_historical.py` | Re-fetch Linear/Meets/Epics from APIs for historical weeks |
-| `migrate_slack_direct.py` | Fetch Slack from API directly (bypasses HTTP timeout) |

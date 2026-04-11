@@ -2,6 +2,7 @@
 
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -13,6 +14,9 @@ from app.database import get_db
 from app.services.config_service import get_config_value, upsert_config
 
 router = APIRouter(tags=["epics-police"])
+
+# Bundled HTML file — lives in static/ next to the app package
+_BUNDLED_HTML = Path(__file__).resolve().parents[2] / "static" / "epics-police.html"
 
 ANALYSIS_SOURCE = "epics_police"
 ANALYSIS_KEY = "latest_analysis"
@@ -38,12 +42,13 @@ async def get_analysis(db: AsyncSession = Depends(get_db)):
 @router.get("/epics-police", response_class=HTMLResponse, include_in_schema=False)
 async def serve_ui():
     """Serve the interactive Epics Police UI."""
-    html_path = os.path.expanduser(settings.epics_police_html_path)
+    # Prefer env override if set, otherwise use bundled file
+    override = settings.epics_police_html_path
+    html_path = os.path.expanduser(override) if override else str(_BUNDLED_HTML)
     if not os.path.isfile(html_path):
         return HTMLResponse(
             content="<h1>Epics Police UI not found</h1>"
-            f"<p>Expected at: <code>{html_path}</code></p>"
-            "<p>Run the epics-police skill to create it, or check the path.</p>",
+            f"<p>Expected at: <code>{html_path}</code></p>",
             status_code=404,
         )
     return FileResponse(html_path, media_type="text/html")

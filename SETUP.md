@@ -4,74 +4,27 @@ This guide walks you through setting up Jura from scratch on a new machine or fo
 
 ## Prerequisites
 
-You need the following tools installed before Jura can run:
-
-### 1. OpenViking Server + CLI
-
-OpenViking is the knowledge base engine that indexes your documents and provides semantic search.
+Install these before proceeding:
 
 ```bash
-# Install the OV CLI (check https://openviking.dev for latest instructions)
-# Verify it's available:
+# OpenViking server + CLI (https://openviking.dev)
 ov --version
-```
 
-You need at least one OpenViking server running with an indexed knowledge base. Each server listens on a port (e.g., `1934`). You'll configure these ports in `.env`.
-
-### 2. Claude CLI
-
-Jura uses the Claude CLI (`claude`) to synthesize answers from retrieved documents.
-
-```bash
-# Install Claude Code CLI (check https://docs.anthropic.com/en/docs/claude-code)
-# Verify it's available:
+# Claude Code CLI (https://docs.anthropic.com/en/docs/claude-code)
 claude --version
-```
 
-You need a valid Anthropic API key configured in the Claude CLI.
+# jq JSON processor
+brew install jq              # macOS
+# sudo apt-get install jq    # Linux
 
-### 3. jq
-
-JSON processor used to parse OpenViking search results.
-
-```bash
-# macOS
-brew install jq
-
-# Linux
-sudo apt-get install jq    # Debian/Ubuntu
-sudo yum install jq        # RHEL/CentOS
-
-# Verify
-jq --version
-```
-
-### 4. bash 3.2+
-
-Jura is written in bash and is compatible with macOS's default bash (3.2). No bash 4+ features are used.
-
-```bash
-bash --version
-```
-
-### 5. Python 3
-
-Required for the sync engine, MCP bridge, and memory hooks.
-
-```bash
+# Python 3 (sync engine, MCP bridge, memory hooks)
 python3 --version
-```
 
-### 6. openviking Python package
-
-The MCP bridge and memory hooks use the `openviking` Python SDK. Install via pipx:
-
-```bash
+# OpenViking Python package (MCP bridge + hooks)
 pipx install openviking
-
-# Verify
-~/.local/pipx/venvs/openviking/bin/python3 -c "import openviking; print('OK')"
 ```
+
+You also need at least one OpenViking server running with an indexed knowledge base.
 
 ## Step 1: Clone the Repository
 
@@ -176,28 +129,12 @@ If your knowledge base uses different date conventions in its paths, you'll need
 
 ## Step 3: Install to PATH
 
-Symlink the script so it's available globally:
-
 ```bash
-# Create ~/.local/bin if it doesn't exist
 mkdir -p ~/.local/bin
-
-# Symlink (so edits to the repo are immediately live)
 ln -sf "$(pwd)/jura" ~/.local/bin/jura
-
-# Verify ~/.local/bin is in your PATH
-echo $PATH | tr ':' '\n' | grep local/bin
 ```
 
-If `~/.local/bin` isn't in your PATH, add it:
-
-```bash
-# bash (~/.bashrc or ~/.bash_profile)
-export PATH="$HOME/.local/bin:$PATH"
-
-# zsh (~/.zshrc)
-export PATH="$HOME/.local/bin:$PATH"
-```
+If `~/.local/bin` isn't in your PATH, add `export PATH="$HOME/.local/bin:$PATH"` to your shell rc file.
 
 ## Step 4: Verify the Setup
 
@@ -254,20 +191,20 @@ Bootstrap nukes all existing resources in OV and does a full re-ingest. Run this
 
 ```bash
 # Full re-ingest (nukes existing data in OV, starts fresh)
-jura sync -w my-project --bootstrap
+jura ov sync -w my-project --bootstrap
 
 # Preview what will happen first
-jura sync -w my-project --bootstrap --dry-run
+jura ov sync -w my-project --bootstrap --dry-run
 ```
 
 This creates a manifest file at `.openviking/manifests/<workspace>.json` tracking every synced file's SHA256 hash.
 
 ### Incremental sync
 
-After the initial bootstrap, use `jura sync` to only re-ingest changed files:
+After the initial bootstrap, use `jura ov sync` to only re-ingest changed files:
 
 ```bash
-jura sync -w my-project
+jura ov sync -w my-project
 ```
 
 The sync compares each local file's SHA256 against the manifest. Only files with different hashes are re-ingested. Deleted files are removed from OV.
@@ -277,7 +214,7 @@ The sync compares each local file's SHA256 against the manifest. Only files with
 See what would change without doing anything:
 
 ```bash
-jura sync -w my-project --status
+jura ov sync -w my-project --status
 ```
 
 Output shows NEW, UPDATE, DELETE, and SKIP counts with file-level detail.
@@ -286,13 +223,13 @@ Output shows NEW, UPDATE, DELETE, and SKIP counts with file-level detail.
 
 ```bash
 # First time: full ingest
-jura sync -w my-project --bootstrap
+jura ov sync -w my-project --bootstrap
 
 # After making changes to your docs:
-jura sync -w my-project
+jura ov sync -w my-project
 
 # Quick check before syncing:
-jura sync -w my-project --status
+jura ov sync -w my-project --status
 ```
 
 ## Step 6: Connect a Workspace to Jura's Plugins (Optional)
@@ -378,23 +315,6 @@ The hooks resolve two paths independently:
 - **`PROJECT_DIR`** — derived from `$CLAUDE_PROJECT_DIR` (the consuming workspace), used to find `ov.conf` and session state
 
 This means the same hook scripts work for any workspace without modification.
-
-## Step 7: Start Using It
-
-```bash
-# Basic question
-jura "how does authentication work?"
-
-# Different workspace
-jura -w docs "what's the API rate limit?"
-
-# Multi-turn conversation
-jura -s "who owns the payments service?"
-jura -s "what tickets are they working on?"
-
-# Broader search for hard-to-find info
-JURA_RESULTS=15 JURA_READ=8 jura "what was discussed about the migration?"
-```
 
 ## Troubleshooting
 

@@ -43,7 +43,7 @@ uvicorn app.main:app --reload --port 8100
 
 ## Database Schema
 
-Alembic manages the schema. One migration (`alembic/versions/001_initial_tables.py`) creates all 11 tables.
+Alembic manages the schema. Migrations in `alembic/versions/` create all 12 tables (001: initial 11 tables, 002: `in_cycle` column, 003: `epics_police_decisions` table).
 
 **In Docker**: migrations run automatically on container startup (Dockerfile runs `alembic upgrade head` before uvicorn).
 
@@ -64,6 +64,7 @@ Alembic manages the schema. One migration (`alembic/versions/001_initial_tables.
 | `meeting_attendees` | Attendees FK to meetings (CASCADE delete) and people |
 | `epics` | Notion epics with properties, markdown content, status |
 | `epic_sub_pages` | Sub-pages FK to epics (CASCADE delete) |
+| `epics_police_decisions` | Feedback loop: accept/reject/redirect decisions with signal context |
 
 ## Required Config
 
@@ -240,7 +241,44 @@ Epics push body (legacy, when Notion can't be fetched from container):
 GET  /api/v1/epics-police/analysis          Latest analysis JSON (pushed by epics-police skill)
 POST /api/v1/epics-police/analysis          Store analysis JSON (body: full analysis object)
 GET  /epics-police                          Interactive ticket hierarchy UI
+
+POST /api/v1/epics-police/decisions         Log accept/reject/redirect decisions (batch)
+     body: {"decisions": [{...}, ...]}       See decision schema below
+GET  /api/v1/epics-police/decisions         Query stored decisions
+     &week=2026-04-06                        Filter by week monday
+     &decision=accepted                      Filter: accepted|rejected|redirected|manual
+     &limit=500&offset=0                     Pagination
+
+GET  /api/v1/epics-police/learnings         Distilled weights, thresholds, and patterns
+POST /api/v1/epics-police/distill           Recompute learnings from all stored decisions
 ```
+
+Decision schema (each item in the `decisions` array):
+```json
+{
+  "week_monday": "2026-04-06",
+  "decided_at": "2026-04-10T14:30:00Z",
+  "orphan_identifier": "TEAM-200",
+  "orphan_labels": ["feature", "checkout"],
+  "orphan_squad": "Payments",
+  "suggested_parent_id": "TEAM-100",
+  "suggested_confidence": 72,
+  "suggested_signals": {
+    "label_overlap": 28, "title_overlap": 15,
+    "description_overlap": 10, "squad_match": 10, "notion_match": 0
+  },
+  "match_source": "pass1",
+  "decision": "accepted",
+  "actual_parent_id": "TEAM-100",
+  "inferred": false
+}
+```
+
+- `decision`: `accepted` (applied suggestion as-is), `rejected` (dismissed), `redirected` (reparented to a different epic), `manual` (drag-drop with no suggestion context)
+- `inferred`: `true` when the skill detects implicit decisions by comparing previous analysis to current Linear state, `false` for explicit UI actions
+- `suggested_signals`: per-signal score breakdown from Pass 1 scoring — used by the distillation engine to learn which signals predict correct matches
+- Learnings response includes `learned_weights` (Bayesian-updated, sum to 100), `learned_thresholds`, `confidence_calibration` (precision per band), `signal_effectiveness` (lift per signal), and `structural_patterns` (long-term patterns like epic over-suggestion, label false positives)
+- The skill auto-calibrates: fetches learnings, uses learned weights for scoring, distills after each run, and updates its own SKILL.md tunables when weights diverge >5%
 
 ### Formatted Output
 
@@ -333,7 +371,7 @@ app/
     http_client.py     Shared httpx client with retry/backoff
     mentions.py        Slack/Linear mention replacement
     templating.py      Jinja2 environment for formatted output
-  models/              SQLAlchemy models (11 tables)
+  models/              SQLAlchemy models (12 tables)
   schemas/             Pydantic request/response models
   routers/             FastAPI route handlers (8 routers)
   services/            Business logic (fetchers, people resolution, config CRUD)
@@ -342,7 +380,7 @@ tests/
   test_*.py            Unit + e2e tests
 bruno/                 Bruno API collection (Local + Docker envs)
 alembic/
-  versions/            Migration files (001_initial_tables.py)
+  versions/            Migration files (001-003)
   env.py               Async migration runner
 scripts/
   setup-local.sh       Local dev bootstrap

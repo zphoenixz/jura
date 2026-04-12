@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401
     Config,
     Epic,
     EpicSubPage,
+    EpicsPoliceDecision,
     FetchLog,
     LinearComment,
     LinearTicket,

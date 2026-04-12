@@ -91,20 +91,22 @@ REST API at `apps/management-api/` — centralizes Slack, Linear, Fireflies, and
 
 - **Docker**: `jura api restart` (API on `:8100`, DB on `:5433`, migrations auto-run)
 - **Local dev**: `cd apps/management-api && bash scripts/setup-local.sh` (venv, deps, DB, migrations, test DB)
-- **Test**: `pytest tests/ -v` (52 tests: 30 unit + 22 e2e)
+- **Test**: `pytest tests/ -v` (70 tests: unit + e2e)
 - **Docs**: `http://localhost:8100/docs` (auto-generated OpenAPI)
 - **Bruno**: Open `apps/management-api/bruno/` folder in Bruno, select "Local" env
 - **Backup**: `./backup_db.sh` (pg_dump to `backups/`)
 
-Database schema managed by Alembic (`alembic/versions/001_initial_tables.py` creates all 11 tables). In Docker, migrations run automatically on container startup. For local dev, `setup-local.sh` handles it, or run `alembic upgrade head` manually.
+Database schema managed by Alembic (3 migrations, 12 tables). In Docker, migrations run automatically on container startup. For local dev, `setup-local.sh` handles it, or run `alembic upgrade head` manually.
 
-Key endpoints: `POST /api/v1/{slack,linear,meets,epics}/fetch?week=YYYY-MM-DD` to fetch, `GET /api/v1/{source}?week=...` to read. Week param snaps any date to Monday-Sunday. Linear write: `PATCH /api/v1/linear/tickets/{id}` (reparent, set children, update fields), `POST /api/v1/linear/tickets` (create). Epics Police: `GET/POST /api/v1/epics-police/analysis`. Interactive UI: `GET /epics-police`.
+Key endpoints: `POST /api/v1/{slack,linear,meets,epics}/fetch?week=YYYY-MM-DD` to fetch, `GET /api/v1/{source}?week=...` to read. Week param snaps any date to Monday-Sunday. Linear write: `PATCH /api/v1/linear/tickets/{id}` (reparent, set children, update fields), `POST /api/v1/linear/tickets` (create). Epics Police: `GET/POST /api/v1/epics-police/analysis`, `POST/GET /api/v1/epics-police/decisions` (feedback loop), `GET /api/v1/epics-police/learnings` (distilled weights), `POST /api/v1/epics-police/distill` (recompute). Interactive UI: `GET /epics-police`.
 
 `.env` holds API keys (SLACK_BOT_TOKEN, LINEAR_API_KEY, FIREFLIES_API_KEY, NOTION_API_KEY). All behavioral config (watched channels, DM people, team names, exclusion rules) in the `configs` DB table — must be seeded after first startup. See `apps/management-api/README.md` "Required Config" section for curl commands.
 
 ### Skills
 
 The **Epics Police** skill lives at `.claude/skills/epics-police/`. Invoke with `/epics-police` from the repo root. It fetches Linear/epics/people from the API, runs deterministic + LLM matching, pushes analysis to `POST /api/v1/epics-police/analysis`, and opens `http://localhost:8100/epics-police`. The interactive UI is bundled at `apps/management-api/static/epics-police.html` and served by the API (volume-mounted for live editing). No local file output.
+
+The skill has a **self-improving feedback loop**: the UI logs accept/reject/redirect decisions (with full signal context) to `POST /api/v1/epics-police/decisions`. On each run, the skill fetches learned weights from `GET /api/v1/epics-police/learnings`, uses them for scoring instead of defaults, detects implicit decisions by comparing previous analysis to current Linear state, triggers `POST /api/v1/epics-police/distill` to recompute learnings, and updates its own SKILL.md tunables block when learned weights diverge >5% from current values. Distillation uses Bayesian weight updating with exponential decay (8-week half-life), confidence calibration per band, and structural pattern detection (cross-squad redirects, label false positives, epic over-suggestion).
 
 ## Dependencies
 

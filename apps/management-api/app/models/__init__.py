@@ -1,5 +1,6 @@
 from app.models.config import Config
 from app.models.epic import Epic, EpicSubPage
+from app.models.epics_police import EpicsPoliceDecision
 from app.models.fetch_log import FetchLog
 from app.models.linear import LinearComment, LinearTicket
 from app.models.meeting import Meeting, MeetingAttendee
@@ -11,6 +12,7 @@ __all__ = [
     "Config",
     "Epic",
     "EpicSubPage",
+    "EpicsPoliceDecision",
     "FetchLog",
     "LinearComment",
     "LinearTicket",

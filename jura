@@ -95,10 +95,11 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
   else
     OV_CMD="${1:-status}"
     [[ $# -gt 0 ]] && shift
+    # Only extract -w here; subcommand-specific flags (--status, --week, etc.) pass through
     while [[ $# -gt 0 ]]; do
       case "$1" in
         -w)  shift; OV_WS="${1:-}"; [[ -z "$OV_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
-        -*)  echo -e "${RED}Unknown flag: $1${RESET}" >&2; exit 1 ;;
+        -*)  break ;;  # let subcommand handle its own flags
         *)   OV_WS="$1"; shift ;;
       esac
     done
@@ -195,6 +196,23 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
       SYNC_WS="${SYNC_WS:-${OV_WS:-$JURA_DEFAULT_WORKSPACE}}"
       exec python3 "$SCRIPT_DIR/.openviking/plugin/scripts/ov_sync.py" "$SYNC_CMD" "$SYNC_WS" ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}
       ;;
+    api-sync)
+      ASYNC_WS=""
+      ASYNC_CMD="sync"
+      ASYNC_ARGS=()
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          -w)        shift; ASYNC_WS="${1:-}"; [[ -z "$ASYNC_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+          --week)    shift; ASYNC_ARGS+=("--week" "${1:-}"); shift ;;
+          --source)  shift; ASYNC_ARGS+=("--source" "${1:-}"); shift ;;
+          --status)  ASYNC_CMD="status"; shift ;;
+          -*)        echo -e "${RED}Unknown api-sync flag: $1${RESET}" >&2; exit 1 ;;
+          *)         ASYNC_WS="$1"; shift ;;
+        esac
+      done
+      ASYNC_WS="${ASYNC_WS:-${OV_WS:-$JURA_DEFAULT_WORKSPACE}}"
+      exec python3 "$SCRIPT_DIR/.openviking/plugin/scripts/ov_api_sync.py" "$ASYNC_CMD" "$ASYNC_WS" ${ASYNC_ARGS[@]+"${ASYNC_ARGS[@]}"}
+      ;;
     *)
       echo "Usage: $(basename "$0") ov <command> [-w workspace]"
       echo ""
@@ -203,10 +221,14 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
       echo "  restart               Start or restart OV servers"
       echo "  stop                  Stop OV servers"
       echo "  logs                  Show last 100 log lines"
-      echo "  sync                  Incremental sync (only changed files)"
+      echo "  sync                  Incremental file sync (local files → OV)"
       echo "  sync --bootstrap      Full re-ingest"
       echo "  sync --status         Dry-run: show what changed"
       echo "  sync --dry-run        Preview without executing"
+      echo "  api-sync              Sync Management API data → OV"
+      echo "  api-sync --week DATE  Sync a specific week (YYYY-MM-DD)"
+      echo "  api-sync --source X   Sync one source (slack|linear|meets|epics)"
+      echo "  api-sync --status     Show what's in OV vs what's in API"
       exit 0
       ;;
   esac
@@ -509,10 +531,13 @@ while [[ $# -gt 0 ]]; do
       echo "  $(basename "$0") ov restart -w <workspace>     Restart one server"
       echo "  $(basename "$0") ov stop                       Stop all servers"
       echo "  $(basename "$0") ov logs                       Last 100 log lines"
-      echo "  $(basename "$0") ov sync                       Incremental sync (default workspace)"
+      echo "  $(basename "$0") ov sync                       Incremental file sync (default workspace)"
       echo "  $(basename "$0") ov sync -w <workspace>        Sync a specific workspace"
       echo "  $(basename "$0") ov sync --bootstrap           Full re-ingest (nukes existing data)"
       echo "  $(basename "$0") ov sync --status              Dry-run: show what changed"
+      echo "  $(basename "$0") ov api-sync -w <workspace>    Sync Management API data → OV"
+      echo "  $(basename "$0") ov api-sync --week YYYY-MM-DD Sync a specific week"
+      echo "  $(basename "$0") ov api-sync --status          Show OV vs API state"
       echo ""
       echo "Browse:"
       echo "  $(basename "$0") ls                            List OV resources (default workspace)"

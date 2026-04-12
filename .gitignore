@@ -1,4 +1,5 @@
 .env
 .openviking/manifests/
 .openviking/session/
+.openviking/staging/
 .jura/*.json

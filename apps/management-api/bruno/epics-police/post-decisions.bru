@@ -1,0 +1,58 @@
+meta {
+  name: Post Decisions
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/epics-police/decisions
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "decisions": [
+      {
+        "week_monday": "2026-04-06",
+        "decided_at": "2026-04-10T14:30:00Z",
+        "orphan_identifier": "TEAM-200",
+        "orphan_labels": ["feature", "checkout"],
+        "orphan_squad": "Payments",
+        "suggested_parent_id": "TEAM-100",
+        "suggested_confidence": 72,
+        "suggested_signals": {
+          "label_overlap": 28,
+          "title_overlap": 15,
+          "description_overlap": 10,
+          "squad_match": 10,
+          "notion_match": 0
+        },
+        "match_source": "pass1",
+        "decision": "accepted",
+        "actual_parent_id": "TEAM-100",
+        "inferred": false
+      },
+      {
+        "week_monday": "2026-04-06",
+        "decided_at": "2026-04-10T14:30:00Z",
+        "orphan_identifier": "TEAM-201",
+        "orphan_labels": ["feature"],
+        "orphan_squad": null,
+        "suggested_parent_id": "TEAM-100",
+        "suggested_confidence": 45,
+        "suggested_signals": {
+          "label_overlap": 10,
+          "title_overlap": 20,
+          "description_overlap": 5,
+          "squad_match": 0,
+          "notion_match": 0
+        },
+        "match_source": "pass1",
+        "decision": "rejected",
+        "actual_parent_id": null,
+        "inferred": false
+      }
+    ]
+  }
+}

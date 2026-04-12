@@ -19,9 +19,9 @@ Read-only weekly audit enforcing: **every feature ticket must ladder up to a Lin
 ## Scope
 
 - **Single week per run.** Operates on the current week's Linear cycle data from `/api/v1/linear?week=<monday>`.
-- **Read-only.** No writes to Linear, Notion, or any remote system. Only writes to the Management API's analysis storage.
-- **Fresh every run.** No state ledger, no cumulative data. Each invocation rebuilds from scratch.
-- **No file I/O.** All output goes to the Management API via `POST /api/v1/epics-police/analysis`. No local files are written.
+- **Read-only.** No writes to Linear, Notion, or any remote system. Only writes to the Management API's analysis storage and decision log.
+- **Self-improving.** Consumes learned weights and patterns from past accept/reject decisions. Each run may update the tunables block in this skill file if learned weights have diverged from current values.
+- **No file I/O** (except self-calibration). All output goes to the Management API via `POST /api/v1/epics-police/analysis`. The only local file write is updating this SKILL.md's tunables block during calibration.
 
 ## Configuration
 
@@ -52,6 +52,10 @@ All data comes from the Management API. The `week` query parameter is always the
 | `GET /api/v1/linear?week=<YYYY-MM-DD>&limit=5000` | All current-week tickets with parent/child refs, labels, comments |
 | `GET /api/v1/epics?week=<YYYY-MM-DD>&limit=5000` | Notion epic catalog (status, team, pm_lead, content, sub_pages) |
 | `GET /api/v1/people?limit=5000` | Identity + squad resolution |
+| `GET /api/v1/epics-police/learnings` | Distilled learned weights, thresholds, and structural patterns |
+| `GET /api/v1/epics-police/analysis` | Previous run's analysis (for implicit decision detection) |
+| `POST /api/v1/epics-police/decisions` | Log inferred decisions from comparing previous analysis to current state |
+| `POST /api/v1/epics-police/distill` | Trigger re-distillation of learnings from all stored decisions |
 
 ## Output
 
@@ -66,6 +70,22 @@ The interactive UI loads it from `GET /api/v1/epics-police/analysis` and renders
 No local files are written.
 
 ## Workflow
+
+### Step 0 — Detect implicit decisions
+
+Before running the analysis, compare the **previous run's analysis** to the **current Linear state** to infer decisions the user made outside the UI (or via Linear directly).
+
+1. Fetch `GET http://localhost:8100/api/v1/epics-police/analysis`. If 404, skip this step (first run).
+2. From the previous analysis, collect all `matched_orphans` across `declared_epics` — these are suggestions that were shown to the user.
+3. Fetch fresh Linear tickets: `GET http://localhost:8100/api/v1/linear?limit=5000` (current week).
+4. For each previous suggestion `{orphan_identifier, suggested_epic_id, confidence, signals, match_source}`:
+   - Look up the orphan in the fresh ticket data.
+   - **Implicit accept**: orphan's current `parent_identifier` == `suggested_epic_id` → decision = `"accepted"`, inferred = true.
+   - **Implicit redirect**: orphan's current `parent_identifier` is set but != `suggested_epic_id` → decision = `"redirected"`, inferred = true, `actual_parent_id` = current parent.
+   - **Ignored**: orphan is still unparented → skip (user hasn't acted yet).
+   - **Already logged**: to avoid duplicates, skip if the orphan identifier + week + suggested parent combo already exists in `GET /api/v1/epics-police/decisions?week=<monday>`.
+5. If any inferred decisions were found, POST them as a batch to `POST http://localhost:8100/api/v1/epics-police/decisions`.
+6. Log to stderr: `"Inferred N decisions (A accepted, R redirected)"`.
 
 ### Step 1 — Initialize
 
@@ -154,6 +174,26 @@ Wait for all 3 agents to complete. If any agent fails, log the failure, add the 
 - `epics_data` — array of Epic objects
 - `people_data` — array of Person objects
 
+### Step 2.5 — Fetch learnings
+
+Fetch learned weights and patterns from the feedback loop:
+
+```
+GET http://localhost:8100/api/v1/epics-police/learnings
+```
+
+The response contains:
+
+- `learned_weights` — Bayesian-updated signal weights (sum to 100). Use these **instead of** the hardcoded weight table in Step 6 if `sufficient_data` is true.
+- `learned_thresholds` — calibrated thresholds. Use these instead of the tunables defaults if `sufficient_data` is true.
+- `confidence_calibration` — precision per confidence band. Include in the Pass 2 LLM prompt so it knows which bands are trustworthy.
+- `structural_patterns` — long-term patterns (e.g., "epic X has 80% rejection rate", "tickets with label Y mislead matching"). Feed relevant patterns into the Pass 2 prompt as anti-pattern context.
+- `signal_effectiveness` — per-signal lift. Informational — already baked into `learned_weights`.
+
+**If the endpoint returns defaults** (`sufficient_data: false`), use the tunables block below as-is. No degraded_sources entry needed — this is the expected cold-start path.
+
+Store the learnings response as `active_learnings` for use in Steps 6-8.
+
 ### Step 3 — Build indexes
 
 Build the in-memory data structures:
@@ -212,7 +252,11 @@ Outcomes:
 
 ### Step 6 — Pass 1: deterministic scoring
 
-For each orphan, score it against every `declared_linear_epic`, every active Notion epic, and every other `implicit_epic_candidate`. Apply the weight table:
+For each orphan, score it against every `declared_linear_epic`, every active Notion epic, and every other `implicit_epic_candidate`.
+
+**Weight selection:** If `active_learnings.sufficient_data` is true, use `active_learnings.learned_weights`. Otherwise, use the default weight table below. Log which weights are active to stderr: `"Using learned weights (N decisions)"` or `"Using default weights (no decision history)"`.
+
+Default weight table (also serves as Bayesian priors):
 
 | Signal | Weight | Computation |
 |---|---|---|
@@ -228,7 +272,7 @@ Tiers:
 - **`PASS1_AMBIGUOUS_FLOOR` (40) to 69** → ambiguous, send to Pass 2
 - **< 40** → unmatched, send to Pass 2 as a "new cluster candidate"
 
-Record the top-3 candidate scores per orphan for debuggability in the analysis JSON.
+Record the top-3 candidate scores per orphan for debuggability in the analysis JSON. **Critical for the feedback loop**: for each orphan match, also record the per-signal breakdown as a `signals` object: `{"label_overlap": 28, "title_overlap": 15, "description_overlap": 10, "squad_match": 10, "notion_match": 0}` and a `match_source` field (`"pass1"` or `"pass2"`). The UI uses these fields to log structured decisions when the user accepts or rejects a suggestion.
 
 ### Step 7 — Pass 2: LLM semantic pass (narrow scope)
 
@@ -347,13 +391,31 @@ except Exception as e:
 
 If the push fails, abort with a clear error — the UI cannot display results without the analysis being stored.
 
-### Step 11 — Open the interactive UI
+### Step 11 — Distill and calibrate
+
+After pushing the analysis, trigger re-distillation and self-calibrate:
+
+1. **Trigger distillation**: `POST http://localhost:8100/api/v1/epics-police/distill`. This recomputes learned weights from all stored decisions (including any inferred in Step 0). The response includes `learned_weights`, `learned_thresholds`, and `weights_changed`.
+
+2. **Self-calibrate** (if `weights_changed` is true and `total_decisions >= 1`): Compare the distilled `learned_weights` to the current tunables block in this SKILL.md file. If any weight differs by more than 5% (absolute), update the tunables block:
+   - Read the current SKILL.md file at `.claude/skills/epics-police/SKILL.md`
+   - Find the tunables block (delimited by ` ``` ` after `## Tunables`)
+   - Update the weight and threshold values to match the learned values
+   - Write the file back
+
+   Log to stderr: `"Calibrated: weights updated (label_overlap 35→32, squad_match 10→18, ...)"` listing each changed value.
+
+   If weights have NOT diverged by >5%, skip the file write and log: `"Calibration check: weights stable, no update needed"`.
+
+3. **Report learnings in summary** (Step 13): Include a `Learning:` line showing decision count and whether weights were updated.
+
+### Step 12 — Open the interactive UI
 
 ```bash
 open http://localhost:8100/epics-police
 ```
 
-### Step 12 — Report summary to stdout
+### Step 13 — Report summary to stdout
 
 Print a compact summary:
 
@@ -367,6 +429,7 @@ Declared [EPIC]s:   {declared_epic_count}
 Implicit candidates:{implicit_candidate_count}  (promote to [EPIC])
 Proposed missing:   {proposed_epic_count}
 Dormant Notion:     {dormant_notion_count}
+Learning:           {total_decisions} decisions | weights {'updated' or 'stable'}
 
 Top actions:
   1. {top action 1 — an implicit candidate to promote, or a proposed epic to create}
@@ -378,15 +441,15 @@ UI: http://localhost:8100/epics-police (opened in browser)
 
 The top-3 actions are your judgment call based on which rows have the highest confidence and the biggest structural impact (an implicit candidate with 11 descendants is higher priority than a proposed epic with 3).
 
-### Step 13 — Stop
+### Step 14 — Stop
 
-Do not commit, do not push, do not run any git command. The user will review the report and act on suggestions through the interactive UI.
+Do not commit, do not push, do not run any git command (except the SKILL.md self-calibration write in Step 11, which is a local file edit, not a git operation). The user will review the report and act on suggestions through the interactive UI.
 
 ---
 
 ## Tunables
 
-Edit this block to tune the skill's matching behavior:
+Edit this block to tune the skill's matching behavior. **These values serve as Bayesian priors and are automatically updated by the self-calibration loop in Step 11** when learned weights diverge by >5%. The git diff of this block shows how the algorithm evolves over time.
 
 ```
 # Implicit epic candidate detection

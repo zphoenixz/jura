@@ -1,0 +1,18 @@
+meta {
+  name: Get Decisions
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{host}}{{apiPrefix}}/epics-police/decisions
+  body: none
+  auth: none
+}
+
+params:query {
+  ~week: 2026-04-06
+  ~decision: accepted
+  ~limit: 500
+  ~offset: 0
+}

@@ -51,7 +51,7 @@ Requires: bash 3.2+, [OpenViking](https://openviking.dev) (server + CLI), [Claud
 ### One-shot Q&A
 
 ```bash
-jura "who leads the Checkout squad?"
+jura "who leads the thunder squad?"
 ```
 
 ### Query a different workspace
@@ -64,18 +64,18 @@ jura -w 518 "what is buddy chat?"
 
 ```bash
 # Daily session (resets at midnight)
-jura -s "who leads the Checkout squad?"
+jura -s "who leads the thunder squad?"
 jura -s "what repos do they own?"        # follow-up carries context
 
 # Named session (persists across days)
-jura -s research "what is the WIRE protocol?"
+jura -s research "what is the stack protocol?"
 jura -s research "how does it handle auth?"
 ```
 
 ### Pipe input
 
 ```bash
-echo "what is the WIRE protocol?" | jura
+echo "what is the stack protocol?" | jura
 ```
 
 ### Combine flags

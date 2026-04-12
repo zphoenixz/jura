@@ -69,7 +69,7 @@ def _make_decision(**overrides):
         "week_monday": "2026-04-06",
         "decided_at": "2026-04-10T14:30:00Z",
         "orphan_identifier": "TEAM-200",
-        "orphan_labels": ["feature", "checkout"],
+        "orphan_labels": ["feature", "thunder"],
         "orphan_squad": "Payments",
         "suggested_parent_id": "TEAM-100",
         "suggested_confidence": 72,
@@ -132,9 +132,7 @@ async def test_get_decisions_filter_by_week(client):
         json={
             "decisions": [
                 _make_decision(week_monday="2026-04-06"),
-                _make_decision(
-                    week_monday="2026-03-30", orphan_identifier="TEAM-300"
-                ),
+                _make_decision(week_monday="2026-03-30", orphan_identifier="TEAM-300"),
             ]
         },
     )
@@ -154,11 +152,10 @@ async def test_get_decisions_filter_by_type(client):
         json={
             "decisions": [
                 _make_decision(decision="accepted"),
+                _make_decision(orphan_identifier="TEAM-201", decision="rejected"),
                 _make_decision(
-                    orphan_identifier="TEAM-201", decision="rejected"
-                ),
-                _make_decision(
-                    orphan_identifier="TEAM-202", decision="redirected",
+                    orphan_identifier="TEAM-202",
+                    decision="redirected",
                     actual_parent_id="TEAM-999",
                 ),
             ]
@@ -258,8 +255,11 @@ async def test_distill_with_decisions(client):
             decision="accepted",
             suggested_confidence=75,
             suggested_signals={
-                "label_overlap": 30, "title_overlap": 5,
-                "description_overlap": 5, "squad_match": 10, "notion_match": 0,
+                "label_overlap": 30,
+                "title_overlap": 5,
+                "description_overlap": 5,
+                "squad_match": 10,
+                "notion_match": 0,
             },
         )
         for i in range(10)
@@ -270,15 +270,16 @@ async def test_distill_with_decisions(client):
             decision="rejected",
             suggested_confidence=55,
             suggested_signals={
-                "label_overlap": 5, "title_overlap": 25,
-                "description_overlap": 15, "squad_match": 0, "notion_match": 0,
+                "label_overlap": 5,
+                "title_overlap": 25,
+                "description_overlap": 15,
+                "squad_match": 0,
+                "notion_match": 0,
             },
         )
         for i in range(10)
     ]
-    await client.post(
-        "/api/v1/epics-police/decisions", json={"decisions": decisions}
-    )
+    await client.post("/api/v1/epics-police/decisions", json={"decisions": decisions})
 
     response = await client.post("/api/v1/epics-police/distill")
     assert response.status_code == 200
@@ -295,7 +296,10 @@ async def test_distill_with_decisions(client):
     assert learnings["sufficient_data"] is True
 
     # Label overlap should have gained weight (strong in accepts, weak in rejects)
-    assert learnings["learned_weights"]["label_overlap"] > learnings["learned_weights"]["title_overlap"]
+    assert (
+        learnings["learned_weights"]["label_overlap"]
+        > learnings["learned_weights"]["title_overlap"]
+    )
 
     # Squad match should have gained weight (present in accepts, absent in rejects)
     assert learnings["signal_effectiveness"]["squad_match"]["lift"] > 1.0
@@ -310,15 +314,29 @@ async def test_distill_confidence_calibration(client):
     """Verify precision is computed per confidence band."""
     decisions = [
         # High confidence accepts (80-100)
-        _make_decision(orphan_identifier="TEAM-1", decision="accepted", suggested_confidence=85),
-        _make_decision(orphan_identifier="TEAM-2", decision="accepted", suggested_confidence=90),
-        _make_decision(orphan_identifier="TEAM-3", decision="accepted", suggested_confidence=88),
+        _make_decision(
+            orphan_identifier="TEAM-1", decision="accepted", suggested_confidence=85
+        ),
+        _make_decision(
+            orphan_identifier="TEAM-2", decision="accepted", suggested_confidence=90
+        ),
+        _make_decision(
+            orphan_identifier="TEAM-3", decision="accepted", suggested_confidence=88
+        ),
         # High confidence reject (should lower precision)
-        _make_decision(orphan_identifier="TEAM-4", decision="rejected", suggested_confidence=82),
+        _make_decision(
+            orphan_identifier="TEAM-4", decision="rejected", suggested_confidence=82
+        ),
         # Low confidence rejects (40-59)
-        _make_decision(orphan_identifier="TEAM-5", decision="rejected", suggested_confidence=45),
-        _make_decision(orphan_identifier="TEAM-6", decision="rejected", suggested_confidence=50),
-        _make_decision(orphan_identifier="TEAM-7", decision="rejected", suggested_confidence=42),
+        _make_decision(
+            orphan_identifier="TEAM-5", decision="rejected", suggested_confidence=45
+        ),
+        _make_decision(
+            orphan_identifier="TEAM-6", decision="rejected", suggested_confidence=50
+        ),
+        _make_decision(
+            orphan_identifier="TEAM-7", decision="rejected", suggested_confidence=42
+        ),
     ]
     await client.post("/api/v1/epics-police/decisions", json={"decisions": decisions})
     await client.post("/api/v1/epics-police/distill")
@@ -386,8 +404,16 @@ async def test_decision_counts_by_type(client):
                 _make_decision(orphan_identifier="TEAM-1", decision="accepted"),
                 _make_decision(orphan_identifier="TEAM-2", decision="accepted"),
                 _make_decision(orphan_identifier="TEAM-3", decision="rejected"),
-                _make_decision(orphan_identifier="TEAM-4", decision="redirected", actual_parent_id="TEAM-999"),
-                _make_decision(orphan_identifier="TEAM-5", decision="manual", suggested_parent_id=None),
+                _make_decision(
+                    orphan_identifier="TEAM-4",
+                    decision="redirected",
+                    actual_parent_id="TEAM-999",
+                ),
+                _make_decision(
+                    orphan_identifier="TEAM-5",
+                    decision="manual",
+                    suggested_parent_id=None,
+                ),
             ]
         },
     )

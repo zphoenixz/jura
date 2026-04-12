@@ -1,7 +1,7 @@
 """Mention interpolation helpers for Slack and Linear content.
 
 Replaces raw user ID mentions (e.g. `<@U08DS6QBBA8>`) and username mentions
-(e.g. `@denis.sokolov`) with human-readable `@Display Name (email)` labels
+(e.g. `@john.doe`) with human-readable `@Display Name (email)` labels
 at GET time — the raw data stays stored as-is.
 """
 
@@ -31,9 +31,7 @@ def _label_for(person: Person) -> str:
     return name
 
 
-async def build_slack_mention_map(
-    db: AsyncSession, texts: list[str]
-) -> dict[str, str]:
+async def build_slack_mention_map(db: AsyncSession, texts: list[str]) -> dict[str, str]:
     """Extract all <@U...> mentions from a list of texts and resolve to labels.
 
     Returns a dict mapping slack_user_id -> 'Display Name (email)'.
@@ -45,10 +43,12 @@ async def build_slack_mention_map(
             ids.update(SLACK_MENTION_RE.findall(text))
     if not ids:
         return {}
-    result = await db.execute(
-        select(Person).where(Person.slack_user_id.in_(ids))
-    )
-    return {p.slack_user_id: _label_for(p) for p in result.scalars().all() if p.slack_user_id}
+    result = await db.execute(select(Person).where(Person.slack_user_id.in_(ids)))
+    return {
+        p.slack_user_id: _label_for(p)
+        for p in result.scalars().all()
+        if p.slack_user_id
+    }
 
 
 async def build_linear_mention_map(
@@ -67,9 +67,7 @@ async def build_linear_mention_map(
         return {}
 
     # Load all people with emails; match by email prefix (case-insensitive)
-    result = await db.execute(
-        select(Person).where(Person.email.isnot(None))
-    )
+    result = await db.execute(select(Person).where(Person.email.isnot(None)))
     people = list(result.scalars().all())
 
     mapping: dict[str, str] = {}

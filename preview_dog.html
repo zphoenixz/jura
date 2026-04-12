@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { background: #f0f0f0; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+  .dog { width: 256px; height: 256px; }
+  svg { width: 100%; height: 100%; shape-rendering: crispEdges; }
+  #jura-head { transform-origin: 21px 14px; animation: head-bob 1s infinite alternate; }
+  #jura-tail { transform-origin: 11px 15px; animation: tail-wag 0.2s infinite alternate; }
+  @keyframes head-bob { from { transform: rotate(-5deg); } to { transform: rotate(5deg); } }
+  @keyframes tail-wag { from { transform: rotate(-20deg); } to { transform: rotate(20deg); } }
+</style>
+</head>
+<body>
+<div class="dog">
+<svg viewBox="0 0 32 32">
+  <!-- back legs (darker) -->
+  <g id="jura-legs-back" fill="#000">
+    <rect x="11" y="22" width="2" height="4" fill="#000" />
+    <rect x="11" y="26" width="2" height="2" fill="#b45309" />
+    <rect x="17" y="22" width="2" height="4" fill="#000" />
+    <rect x="17" y="26" width="2" height="2" fill="#b45309" />
+  </g>
+
+  <!-- tail -->
+  <g id="jura-tail">
+    <rect x="8" y="11" width="3" height="4" fill="#111827" />
+  </g>
+
+  <!-- body -->
+  <g id="jura-body">
+    <rect x="10" y="14" width="13" height="8" fill="#111827" />
+    <rect x="21" y="16" width="2" height="4" fill="#d97706" /> <!-- chest -->
+    <rect x="10" y="15" width="1" height="5" fill="#111827" /> <!-- round rump -->
+    <rect x="22" y="15" width="1" height="5" fill="#111827" /> <!-- round front -->
+  </g>
+
+  <!-- front legs -->
+  <g id="jura-legs-front">
+    <rect x="13" y="22" width="2" height="4" fill="#111827" />
+    <rect x="13" y="26" width="2" height="2" fill="#d97706" />
+    <rect x="19" y="22" width="2" height="4" fill="#111827" />
+    <rect x="19" y="26" width="2" height="2" fill="#d97706" />
+  </g>
+
+  <!-- head -->
+  <g id="jura-head">
+    <rect x="19" y="8" width="6" height="7" fill="#111827" />
+    <rect x="25" y="11" width="4" height="3" fill="#d97706" /> <!-- snout -->
+    <rect x="28" y="11" width="1" height="1" fill="#111827" /> <!-- nose -->
+    <rect x="21" y="9" width="1" height="1" fill="#d97706" /> <!-- eyebrow -->
+    <rect x="22" y="10" width="2" height="2" fill="#fff" /> <!-- eye white -->
+    <rect x="23" y="10" width="1" height="1" fill="#000" /> <!-- pupil -->
+    <!-- ears -->
+    <rect x="19" y="4" width="2" height="4" fill="#111827" />
+    <rect x="20" y="5" width="1" height="3" fill="#d97706" />
+    <rect x="23" y="4" width="2" height="4" fill="#111827" />
+    <rect x="24" y="5" width="1" height="3" fill="#d97706" />
+  </g>
+</svg>
+</div>
+</body>
+</html>

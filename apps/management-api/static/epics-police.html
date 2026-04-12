@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Epics Police — Ticket Hierarchy</title>
+<title>Jura — Epics Police</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect x='4' y='0' width='2' height='3' fill='%23374151'/><rect x='10' y='0' width='2' height='3' fill='%23374151'/><rect x='5' y='1' width='1' height='2' fill='%23fca5a5'/><rect x='10' y='1' width='1' height='2' fill='%23fca5a5'/><rect x='4' y='3' width='8' height='5' rx='1' fill='%23374151'/><rect x='5' y='4' width='2' height='1' fill='%23d97706'/><rect x='9' y='4' width='2' height='1' fill='%23d97706'/><rect x='6' y='4' width='1' height='1' fill='%23fff'/><rect x='9' y='4' width='1' height='1' fill='%23fff'/><rect x='7' y='6' width='2' height='1' fill='%23111827'/><rect x='6' y='7' width='4' height='1' fill='%23d97706'/><rect x='5' y='8' width='6' height='1' fill='%233b82f6'/><rect x='4' y='9' width='8' height='4' fill='%23374151'/><rect x='5' y='10' width='6' height='2' fill='%23d97706'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&display=swap" rel="stylesheet">
@@ -37,11 +38,37 @@ body {
   justify-content: space-between;
   gap: 16px;
 }
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.header-logo {
+  font-size: 18px;
+  line-height: 1;
+}
 .header-title {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 800;
   color: #111827;
+  letter-spacing: -0.03em;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.header-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.4;
 }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 .btn {
@@ -580,33 +607,46 @@ body {
 .loading-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 32px;
 }
-.loading-badge {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  background: #2563eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.loading-logo {
+  font-size: 32px;
+  line-height: 1;
   flex-shrink: 0;
 }
-.loading-badge svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
 .loading-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.loading-brand-name {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: 800;
   color: #f1f5f9;
   letter-spacing: -0.03em;
+  line-height: 1;
+}
+.loading-brand-name .loading-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(251, 191, 36, 0.15);
+  color: #fbbf24;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  margin-left: 6px;
+  position: relative;
+  top: -1px;
+}
+.loading-brand-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: #64748b;
 }
 
 .loading-steps {
@@ -757,24 +797,14 @@ body {
 .operation-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 24px;
 }
-.operation-brand .loading-badge {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-}
-.operation-brand .loading-badge svg {
-  width: 16px;
-  height: 16px;
-}
 .operation-brand-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 15px;
+  font-weight: 800;
+  color: #f1f5f9;
+  letter-spacing: -0.02em;
 }
 .operation-status {
   display: flex;
@@ -953,18 +983,6 @@ body {
 .empty-state-win .empty-state-title { color: #065f46; }
 
 /* ========== Batch Apply ========== */
-.batch-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  border-radius: 6px;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  font-size: 12px;
-  color: #92400e;
-}
 
 /* ========== Confirm Button State ========== */
 .btn-confirm {
@@ -1197,15 +1215,122 @@ body {
 .filter-tab:hover { background: #f3f4f6; color: #374151; }
 .filter-tab.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
 
+/* ========== Jura Companion ========== */
+.jura-companion {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 8000;
+  cursor: grab;
+  user-select: none;
+  transition: filter 0.2s ease;
+}
+.jura-companion:active { cursor: grabbing; }
+.jura-companion.dragging { filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15)); }
+.staging-active .jura-companion { bottom: 74px; }
+
+@keyframes body-breathe { 0% { transform: scaleY(1); } 50% { transform: scaleY(0.96) translateY(2px); } 100% { transform: scaleY(1); } }
+@keyframes head-sniff { 0% { transform: rotate(5deg) translateY(4px); } 50% { transform: rotate(10deg) translateY(6px); } 100% { transform: rotate(5deg) translateY(4px); } }
+@keyframes float-z { 0% { transform: translateY(0) scale(0.8); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(-20px) scale(1.2); opacity: 0; } }
+@keyframes celebrate-jump { 0% { transform: translateY(0) scaleY(1); } 20% { transform: translateY(2px) scaleY(0.9); } 50% { transform: translateY(-15px) scaleY(1.05); } 80% { transform: translateY(0) scaleY(0.95); } 100% { transform: translateY(0) scaleY(1); } }
+@keyframes tail-wag-simulate { 0% { transform: skewX(0deg); } 50% { transform: skewX(-5deg); } 100% { transform: skewX(0deg); } }
+@keyframes dog-blink { 0%, 96%, 100% { transform: scaleY(1); } 98% { transform: scaleY(0.9) translateY(2px); } }
+
+.jura-svg-wrapper {
+  width: 64px;
+  height: 64px;
+  position: relative;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  transform-origin: bottom center;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}
+.jura-pixel-img {
+  transform-origin: bottom center;
+  transition: transform 0.2s ease;
+}
+
+/* Idle */
+.jura-companion[data-jura-state="idle"] .jura-pixel-img { animation: body-breathe 2s infinite ease-in-out, dog-blink 4s infinite; }
+
+/* Sniff */
+.jura-companion[data-jura-state="sniff"] .jura-pixel-img { animation: head-sniff 0.5s infinite alternate ease-in-out; }
+
+/* Happy & Celebrate & Work */
+.jura-companion[data-jura-state="happy"] .jura-pixel-img,
+.jura-companion[data-jura-state="work"] .jura-pixel-img {
+  animation: celebrate-jump 0.4s infinite ease-in-out;
+}
+
+.jura-companion[data-jura-state="celebrate"] .jura-pixel-img { animation: celebrate-jump 0.3s infinite ease-in-out; }
+.jura-companion[data-jura-state="celebrate"] #jura-sparkles { opacity: 1 !important; animation: float-z 1s infinite; }
+
+/* Alert / Watch */
+.jura-companion[data-jura-state="alert"] .jura-pixel-img,
+.jura-companion[data-jura-state="watch"] .jura-pixel-img {
+  transform: translateY(-4px) scale(1.05);
+}
+
+/* Confused */
+.jura-companion[data-jura-state="confused"] .jura-pixel-img { transform: rotate(15deg); }
+
+/* Sleep */
+.jura-companion[data-jura-state="sleep"] .jura-pixel-img { transform: scaleY(0.75) translateY(10px); filter: brightness(0.8); }
+.jura-companion[data-jura-state="sleep"] #jura-sleep-z { opacity: 1 !important; animation: float-z 2s infinite ease-in; }
+
+/* Blink */
+.jura-companion[data-jura-state="blink"] .jura-pixel-img { transform: scaleY(0.9) translateY(2px); }
+
+/* Speech bubble */
+.jura-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 4px 10px;
+  background: #fff;
+  border: 2px solid #1f2937;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1f2937;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.jura-bubble.visible { opacity: 1; }
+.jura-bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1f2937;
+}
+.jura-bubble::before {
+  content: '';
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #fff;
+  z-index: 1;
+}
+
 /* ========== Applying overlay ========== */
 .applying-overlay {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   background: rgba(255,255,255,0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
   z-index: 5;
 }
 /* ========== Sidebar Layout ========== */
@@ -1335,8 +1460,8 @@ body {
 <div class="operation-overlay" id="operationOverlay">
   <div class="operation-card">
     <div class="operation-brand">
-      <div class="loading-badge"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/><path d="M8 12l3 3 5-5"/></svg></div>
-      <span class="operation-brand-label">Epics Police</span>
+      <span style="font-size:20px;line-height:1">🐕</span>
+      <span class="operation-brand-label">Jura</span>
     </div>
     <div class="operation-status">
       <div class="operation-spinner"></div>
@@ -1350,8 +1475,11 @@ body {
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-card">
     <div class="loading-brand">
-      <div class="loading-badge"><svg viewBox="0 0 24 24"><path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7L12 2z"/><path d="M8 12l3 3 5-5"/></svg></div>
-      <span class="loading-brand-text">Epics Police</span>
+      <span class="loading-logo">🐕</span>
+      <div class="loading-brand-text">
+        <span class="loading-brand-name">Jura <span class="loading-badge-inline">Epics Police</span></span>
+        <span class="loading-brand-sub">Sniffing out orphan tickets...</span>
+      </div>
     </div>
     <div class="loading-steps" id="loadingSteps">
       <div class="loading-step-item" data-step="fetch"><div class="step-indicator"></div><span class="step-label">Fetching tickets &amp; analysis</span></div>
@@ -1368,7 +1496,10 @@ body {
 <div class="app" id="app">
   <div class="header">
     <div class="header-top">
-      <div class="header-title">Epics Police — Ticket Hierarchy</div>
+      <div class="header-brand">
+        <span class="header-logo">🐕</span>
+        <div class="header-title">Jura <span class="header-badge">Epics Police</span></div>
+      </div>
       <div class="header-actions">
         <div class="search-box">
           <span class="search-icon">&#x1F50D;</span>
@@ -1679,22 +1810,6 @@ function getProposedEpics() {
       return t && !t.parent_identifier;
     });
   });
-}
-
-function countSuggestions() {
-  var count = 0;
-  if (analysis) {
-    if (analysis.declared_epics) {
-      analysis.declared_epics.forEach(function(e) {
-        count += getMatchedOrphansForEpic(e.identifier).length;
-      });
-    }
-    if (analysis.implicit_candidates) {
-      count += analysis.implicit_candidates.length;
-    }
-    count += getProposedEpics().length;
-  }
-  return count;
 }
 
 /* ================================================================
@@ -2018,12 +2133,6 @@ function renderTree() {
   }
 
   var html = '';
-
-  // Batch apply bar for suggestions
-  var totalSuggestions = countSuggestions();
-  if (totalSuggestions > 1) {
-    html += '<div class="batch-bar"><span>' + totalSuggestions + ' suggestions available</span><button class="btn btn-sm btn-amber" onclick="applyAllSuggestions()">Apply all suggestions</button></div>';
-  }
 
   var visibleCount = 0;
   roots.forEach(function(t) {
@@ -2557,7 +2666,7 @@ function moveSibling(movedId, targetId, position) {
    ================================================================ */
 function applySuggestion(event, orphanId, epicId) {
   event.stopPropagation();
-  stageReparent(orphanId, epicId);
+  stageReparent(orphanId, epicId, 'suggestion');
   expandedNodes.add(epicId);
   renderAll();
 }
@@ -2958,36 +3067,30 @@ function undoLast() {
 }
 
 /* ================================================================
-   BATCH APPLY
-   ================================================================ */
-function applyAllSuggestions() {
-  if (!analysis) return;
-  var count = 0;
-
-  // Stage orphan → epic matches
-  if (analysis.declared_epics) {
-    analysis.declared_epics.forEach(function(e) {
-      getMatchedOrphansForEpic(e.identifier).forEach(function(mo) {
-        stageReparent(mo.identifier, e.identifier);
-        expandedNodes.add(e.identifier);
-        count++;
-      });
-    });
-  }
-
-  if (count === 0) {
-    showToast('info', 'No suggestions to stage.');
-    return;
-  }
-
-  renderAll();
-  showToast('info', 'Staged ' + count + ' suggestions — review and Save all when ready');
-}
-
-/* ================================================================
    STAGING
    ================================================================ */
-function stageReparent(childId, newParentId) {
+function findSuggestionForOrphan(orphanId) {
+  // Search analysis for a suggestion matching this orphan
+  if (!analysis || !analysis.declared_epics) return null;
+  for (var i = 0; i < analysis.declared_epics.length; i++) {
+    var epic = analysis.declared_epics[i];
+    if (!epic.matched_orphans) continue;
+    for (var j = 0; j < epic.matched_orphans.length; j++) {
+      var mo = epic.matched_orphans[j];
+      if (mo.identifier === orphanId) {
+        return {
+          suggested_parent_id: epic.identifier,
+          confidence: mo.confidence || null,
+          signals: mo.signals || null,
+          match_source: mo.match_source || null,
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function stageReparent(childId, newParentId, source) {
   var ticket = ticketsById[childId];
   if (!ticket) return;
   // If already staged, keep the original oldParent
@@ -2999,10 +3102,13 @@ function stageReparent(childId, newParentId) {
     delete stagedChanges[childId];
     ticket.parent_identifier = oldParent;
   } else {
+    var suggestion = findSuggestionForOrphan(childId);
     stagedChanges[childId] = {
       newParent: newParentId,
       oldParent: oldParent,
       type: 'reparent',
+      source: source || 'manual',  // 'suggestion' | 'manual' | 'batch'
+      suggestion: suggestion,       // analysis context for decision logging
       description: childId + ' → ' + (newParentId || 'root'),
     };
     ticket.parent_identifier = newParentId;
@@ -3124,6 +3230,9 @@ async function commitAllStaged() {
     dataLoadedAt = new Date();
   } catch (e) { /* render with what we have */ }
 
+  // Log decisions to the feedback loop (fire-and-forget)
+  logDecisions(entries, rejections, failedIds);
+
   hideOperationOverlay();
   btn.disabled = false;
   btn.textContent = 'Save all';
@@ -3137,6 +3246,96 @@ async function commitAllStaged() {
   if (rejectionsFailed) parts.push('rejections failed to save');
   var hasErrors = failCount > 0 || rejectionsFailed;
   showToast(hasErrors ? 'info' : 'success', 'Saved: ' + parts.join(', '));
+}
+
+function logDecisions(entries, rejections, failedIds) {
+  var weekMonday = getCurrentWeekParam();
+  var now = new Date().toISOString();
+  var decisions = [];
+
+  // Successful reparents → accepted, redirected, or manual decisions
+  entries.forEach(function(entry) {
+    var childId = entry[0];
+    var change = entry[1];
+    // Skip failed commits
+    if (failedIds.indexOf(childId) !== -1) return;
+
+    var ticket = ticketsById[childId];
+    var suggestion = change.suggestion;
+    var decision;
+
+    if (change.source === 'suggestion' && suggestion) {
+      // Applied a suggestion — check if to the suggested epic or a different one
+      if (change.newParent === suggestion.suggested_parent_id) {
+        decision = 'accepted';
+      } else {
+        decision = 'redirected';
+      }
+    } else if (suggestion && change.source === 'manual') {
+      // Manual reparent but a suggestion existed — it's a redirect
+      decision = 'redirected';
+    } else {
+      // Pure manual reparent, no suggestion context
+      decision = 'manual';
+    }
+
+    decisions.push({
+      week_monday: weekMonday,
+      decided_at: now,
+      orphan_identifier: childId,
+      orphan_labels: (ticket && ticket.labels) || [],
+      orphan_squad: (ticket && ticket.person_id && peopleById[ticket.person_id])
+        ? findSquadForPerson(ticket.person_id)
+        : null,
+      suggested_parent_id: suggestion ? suggestion.suggested_parent_id : null,
+      suggested_confidence: suggestion ? suggestion.confidence : null,
+      suggested_signals: suggestion ? suggestion.signals : null,
+      match_source: suggestion ? suggestion.match_source : null,
+      decision: decision,
+      actual_parent_id: change.newParent || null,
+      inferred: false,
+    });
+  });
+
+  // Rejections
+  rejections.forEach(function(orphanId) {
+    var ticket = ticketsById[orphanId];
+    var suggestion = findSuggestionForOrphan(orphanId);
+
+    decisions.push({
+      week_monday: weekMonday,
+      decided_at: now,
+      orphan_identifier: orphanId,
+      orphan_labels: (ticket && ticket.labels) || [],
+      orphan_squad: (ticket && ticket.person_id && peopleById[ticket.person_id])
+        ? findSquadForPerson(ticket.person_id)
+        : null,
+      suggested_parent_id: suggestion ? suggestion.suggested_parent_id : null,
+      suggested_confidence: suggestion ? suggestion.confidence : null,
+      suggested_signals: suggestion ? suggestion.signals : null,
+      match_source: suggestion ? suggestion.match_source : null,
+      decision: 'rejected',
+      actual_parent_id: null,
+      inferred: false,
+    });
+  });
+
+  if (decisions.length === 0) return;
+
+  // Fire-and-forget POST to decisions endpoint
+  fetch(API + '/api/v1/epics-police/decisions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decisions: decisions }),
+  }).catch(function() {
+    // Silent — decision logging is best-effort, must not block the UI
+  });
+}
+
+function findSquadForPerson(personId) {
+  // Squad data may be on the person objects if loaded
+  // For now return null; the skill fills this from the people API
+  return null;
 }
 
 function updateStagingBar() {
@@ -3403,6 +3602,275 @@ setInterval(renderFreshness, 60000);
    INIT
    ================================================================ */
 init();
+
+/* ================================================================
+   JURA COMPANION — PIXEL DOG
+   ================================================================ */
+var jura = {
+  state: 'idle',
+  el: null,
+  pixel: null,
+  bubble: null,
+  bubbleTimer: null,
+  blinkTimer: null,
+  sleepTimer: null,
+  returnTimer: null,
+  isDragging: false,
+  dragOffX: 0,
+  dragOffY: 0,
+  facing: 'right',
+};
+
+
+function initJura() {
+  // Create DOM
+  var comp = document.createElement('div');
+  comp.className = 'jura-companion';
+  comp.setAttribute('data-jura-state', 'idle');
+  
+  comp.innerHTML = `
+    <div class="jura-bubble" id="juraBubble"></div>
+    <div class="jura-svg-wrapper">
+      <img src="/static/jura-pixel-art.png" alt="Jura" class="jura-pixel-img" style="image-rendering: pixelated; width: 100%; height: 100%; object-fit: contain;">
+      <div id="jura-sleep-z" style="opacity: 0; position: absolute; top: -10px; right: -10px;">
+        <span style="font-family: sans-serif; font-size: 16px; font-weight: bold; color: #6b7280;">Z</span>
+      </div>
+      <div id="jura-sparkles" style="opacity: 0; position: absolute; top: -10px; left: -10px;">
+        <span style="font-size: 24px;">✨</span>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(comp);
+
+  jura.el = comp;
+  jura.bubble = document.getElementById('juraBubble');
+
+  // Restore position
+  var saved = localStorage.getItem('jura_pos');
+  if (saved) {
+    try {
+      var pos = JSON.parse(saved);
+      comp.style.bottom = 'auto';
+      comp.style.right = 'auto';
+      comp.style.left = pos.x + 'px';
+      comp.style.top = pos.y + 'px';
+    } catch(e) {}
+  }
+
+  startIdleTimers();
+
+  // Dragging Jura herself
+  comp.addEventListener('mousedown', function(e) {
+    if (e.target.closest('.jura-bubble')) return;
+    jura.isDragging = true;
+    jura.el.classList.add('dragging');
+    var rect = comp.getBoundingClientRect();
+    jura.dragOffX = e.clientX - rect.left;
+    jura.dragOffY = e.clientY - rect.top;
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', function(e) {
+    if (!jura.isDragging) return;
+    var x = e.clientX - jura.dragOffX;
+    var y = e.clientY - jura.dragOffY;
+    // Clamp
+    x = Math.max(0, Math.min(window.innerWidth - 64, x));
+    y = Math.max(0, Math.min(window.innerHeight - 64, y));
+    jura.el.style.left = x + 'px';
+    jura.el.style.top = y + 'px';
+    jura.el.style.bottom = 'auto';
+    jura.el.style.right = 'auto';
+  });
+
+  document.addEventListener('mouseup', function() {
+    if (!jura.isDragging) return;
+    jura.isDragging = false;
+    jura.el.classList.remove('dragging');
+    // Save position
+    var rect = jura.el.getBoundingClientRect();
+    localStorage.setItem('jura_pos', JSON.stringify({x: rect.left, y: rect.top}));
+  });
+}
+
+function renderSprite(name) {
+  if (jura.el) {
+    jura.el.setAttribute('data-jura-state', (name || 'idle').replace(/\d+$/, ''));
+  }
+}
+
+function juraReact(state, bubbleText) {
+  if (jura.state === state && !bubbleText) return;
+  jura.state = state;
+
+  // Cancel timers
+  clearTimeout(jura.blinkTimer);
+  clearTimeout(jura.sleepTimer);
+  clearTimeout(jura.returnTimer);
+
+  renderSprite(state);
+
+  if (bubbleText) {
+    showJuraBubble(bubbleText);
+  }
+
+  // Set timeout for states that return to idle
+  var durations = {
+    'happy': 2000,
+    'celebrate': 3000,
+    'sniff': 2000,
+    'work': 0, // Stays working until explicit returnToIdle
+    'confused': 3000,
+    'alert': 4000,
+    'blink': 150
+  };
+
+  if (state === 'idle') {
+    startIdleTimers();
+  } else if (durations[state] > 0) {
+    jura.returnTimer = setTimeout(function() { returnToIdle(); }, durations[state]);
+  }
+}
+
+function returnToIdle() {
+  clearTimeout(jura.returnTimer);
+  jura.returnTimer = null;
+  jura.state = 'idle';
+  renderSprite('idle');
+  startIdleTimers();
+}
+
+function startIdleTimers() {
+  clearTimeout(jura.blinkTimer);
+  clearTimeout(jura.sleepTimer);
+
+  // Random blink
+  function scheduleBlink() {
+    jura.blinkTimer = setTimeout(function() {
+      if (jura.state !== 'idle') return;
+      renderSprite('blink');
+      setTimeout(function() {
+        if (jura.state === 'idle') renderSprite('idle');
+        scheduleBlink();
+      }, 150);
+    }, 2000 + Math.random() * 4000);
+  }
+  scheduleBlink();
+
+  // Sleep after 60s
+  jura.sleepTimer = setTimeout(function() {
+    if (jura.state === 'idle') {
+      juraReact('sleep', 'zzZ');
+    }
+  }, 60000);
+}
+
+function showJuraBubble(text) {
+  if (!jura.bubble) return;
+  clearTimeout(jura.bubbleTimer);
+  jura.bubble.textContent = text;
+  jura.bubble.classList.add('visible');
+  jura.bubbleTimer = setTimeout(function() {
+    jura.bubble.classList.remove('visible');
+  }, 2500);
+}
+
+// Hook into the existing showToast to trigger reactions
+var _origShowToast = null;
+function hookJuraIntoToasts() {
+  _origShowToast = showToast;
+  showToast = function(type, message) {
+    _origShowToast(type, message);
+    if (type === 'success') {
+      juraReact('happy', 'woof!');
+    } else if (type === 'error') {
+      juraReact('confused', 'ruh roh');
+    }
+  };
+}
+
+// Hook into showOperationOverlay
+var _origShowOp = null;
+function hookJuraIntoOperations() {
+  _origShowOp = showOperationOverlay;
+  showOperationOverlay = function(text, detail) {
+    _origShowOp(text, detail);
+    juraReact('work', 'on it!');
+  };
+
+  var _origHideOp = hideOperationOverlay;
+  hideOperationOverlay = function() {
+    _origHideOp();
+    // happy reaction will come from the toast
+  };
+}
+
+// Hook into drag events for watching state
+var _origDragStart = null;
+var _origDragEnd = null;
+function hookJuraIntoDrag() {
+  _origDragStart = onDragStart;
+  onDragStart = function(event, identifier) {
+    _origDragStart(event, identifier);
+    juraReact('watch');
+  };
+
+  _origDragEnd = onDragEnd;
+  onDragEnd = function(event) {
+    _origDragEnd(event);
+    if (jura.state === 'watch') returnToIdle();
+  };
+}
+
+// Hook into renderAll for compliance-based reactions
+var _origRenderAll = null;
+function hookJuraIntoRender() {
+  _origRenderAll = renderAll;
+  renderAll = function() {
+    _origRenderAll();
+    // Check compliance after render
+    if (analysis && analysis.compliance_snapshot) {
+      var pct = analysis.compliance_snapshot.feature_compliance_pct || 0;
+      if (pct >= 80 && jura.state === 'idle') {
+        juraReact('celebrate', 'nice! ' + pct + '%');
+      } else if (pct < 50 && jura.state === 'idle') {
+        juraReact('alert', pct + '% — orphans!');
+      }
+    }
+  };
+}
+
+// Hook into setLoadingStep for sniffing during load
+var _origSetStep = null;
+function hookJuraIntoLoading() {
+  _origSetStep = setLoadingStep;
+  setLoadingStep = function(step, detail, pct) {
+    _origSetStep(step, detail, pct);
+    if (jura.state !== 'sniff') {
+      juraReact('sniff', '*sniff sniff*');
+    }
+  };
+
+  var _origHideProg = hideProgress;
+  hideProgress = function() {
+    _origHideProg();
+    returnToIdle();
+  };
+}
+
+// Boot companion after init
+function bootJura() {
+  initJura();
+  hookJuraIntoToasts();
+  hookJuraIntoOperations();
+  hookJuraIntoDrag();
+  hookJuraIntoRender();
+  hookJuraIntoLoading();
+}
+
+// Start after a tiny delay so sprites render after DOM is ready
+setTimeout(bootJura, 100);
+
 </script>
 </body>
 </html>

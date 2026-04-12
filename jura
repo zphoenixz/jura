@@ -93,14 +93,18 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
       esac
     done
   else
+    # Extract -w if it appears before the subcommand: jura ov -w ws status
+    if [[ "${1:-}" == "-w" ]]; then
+      shift; OV_WS="${1:-}"; [[ -z "$OV_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift
+    fi
     OV_CMD="${1:-status}"
     [[ $# -gt 0 ]] && shift
-    # Only extract -w here; subcommand-specific flags (--status, --week, etc.) pass through
+    # Extract -w if it appears after the subcommand: jura ov status -w ws
+    # Everything else (flags AND positional args) passes to the subcommand
     while [[ $# -gt 0 ]]; do
       case "$1" in
         -w)  shift; OV_WS="${1:-}"; [[ -z "$OV_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
-        -*)  break ;;  # let subcommand handle its own flags
-        *)   OV_WS="$1"; shift ;;
+        *)   break ;;
       esac
     done
   fi
@@ -213,6 +217,121 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
       ASYNC_WS="${ASYNC_WS:-${OV_WS:-$JURA_DEFAULT_WORKSPACE}}"
       exec python3 "$SCRIPT_DIR/.openviking/plugin/scripts/ov_api_sync.py" "$ASYNC_CMD" "$ASYNC_WS" ${ASYNC_ARGS[@]+"${ASYNC_ARGS[@]}"}
       ;;
+    job)
+      OV_JOB_PLIST="com.jura.ov.api-sync"
+      OV_JOB_CMD="${1:-status}"
+      [[ $# -gt 0 ]] && shift
+      OV_JOB_WS=""
+      OV_JOB_HOUR=""
+
+      while [[ $# -gt 0 ]]; do
+        case "$1" in
+          -w)  shift; OV_JOB_WS="${1:-}"; [[ -z "$OV_JOB_WS" ]] && { echo -e "${RED}Error: -w requires a workspace name${RESET}" >&2; exit 1; }; shift ;;
+          -*)  echo -e "${RED}Unknown ov job flag: $1${RESET}" >&2; exit 1 ;;
+          *)   OV_JOB_HOUR="$1"; shift ;;
+        esac
+      done
+      OV_JOB_WS="${OV_JOB_WS:-${OV_WS:-$JURA_DEFAULT_WORKSPACE}}"
+      OV_JOB_LOGFILE="$SCRIPT_DIR/.openviking/staging/ov-job.log"
+
+      case "$OV_JOB_CMD" in
+        status)
+          pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
+          if [[ -f "$pf" ]]; then
+            JOB_HR=$(defaults read "$pf" StartCalendarInterval 2>/dev/null | grep Hour | grep -o '[0-9]*' || echo "21")
+            JOB_WS_SAVED=$(defaults read "$pf" EnvironmentVariables 2>/dev/null | grep OV_JOB_WORKSPACE -A1 | tail -1 | tr -d ' ";' || echo "$OV_JOB_WS")
+            echo "Job: active (daily at $(printf '%02d' "$JOB_HR"):00)"
+            echo "Workspace: $JOB_WS_SAVED"
+            if [[ -f "$OV_JOB_LOGFILE" ]]; then
+              LAST_LINE=$(grep -E '^\[' "$OV_JOB_LOGFILE" 2>/dev/null | tail -1)
+              [[ -n "$LAST_LINE" ]] && echo "Last log: $LAST_LINE"
+            fi
+          else
+            echo "Job: not running"
+          fi
+          ;;
+        start)
+          HOUR="${OV_JOB_HOUR:-21}"
+          # Validate hour is 0-23
+          if ! [[ "$HOUR" =~ ^[0-9]+$ ]] || [[ "$HOUR" -lt 0 ]] || [[ "$HOUR" -gt 23 ]]; then
+            echo -e "${RED}Hour must be 0-23, got: $HOUR${RESET}" >&2
+            exit 1
+          fi
+
+          # Resolve jura path (follow symlinks to real script)
+          JURA_BIN="$SCRIPT_DIR/jura"
+
+          pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
+          mkdir -p "$HOME/Library/LaunchAgents"
+          mkdir -p "$(dirname "$OV_JOB_LOGFILE")"
+
+          # Always unload existing first — prevents duplicate jobs
+          [[ -f "$pf" ]] && launchctl unload "$pf" 2>/dev/null
+
+          printf '%s\n' \
+            '<?xml version="1.0" encoding="UTF-8"?>' \
+            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+            '<plist version="1.0">' \
+            '<dict>' \
+            "  <key>Label</key><string>${OV_JOB_PLIST}</string>" \
+            '  <key>ProgramArguments</key><array>' \
+            "    <string>${JURA_BIN}</string>" \
+            '    <string>ov</string>' \
+            '    <string>api-sync</string>' \
+            '    <string>-w</string>' \
+            "    <string>${OV_JOB_WS}</string>" \
+            '  </array>' \
+            '  <key>StartCalendarInterval</key>' \
+            '  <dict>' \
+            "    <key>Hour</key><integer>${HOUR}</integer>" \
+            '    <key>Minute</key><integer>0</integer>' \
+            '  </dict>' \
+            '  <key>StandardOutPath</key>' \
+            "  <string>${OV_JOB_LOGFILE}</string>" \
+            '  <key>StandardErrorPath</key>' \
+            "  <string>${OV_JOB_LOGFILE}</string>" \
+            '  <key>RunAtLoad</key><false/>' \
+            '</dict></plist>' > "$pf"
+
+          launchctl load "$pf" 2>/dev/null
+          echo "Job started — api-sync daily at $(printf '%02d' "$HOUR"):00"
+          echo "Workspace: $OV_JOB_WS"
+          echo "Log: $OV_JOB_LOGFILE"
+          ;;
+        stop)
+          pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
+          if [[ -f "$pf" ]]; then
+            launchctl unload "$pf" 2>/dev/null
+            rm -f "$pf"
+            echo "Job stopped and removed"
+          else
+            echo "Job not installed"
+          fi
+          ;;
+        logs|log)
+          if [[ -f "$OV_JOB_LOGFILE" ]]; then
+            tail -50 "$OV_JOB_LOGFILE"
+          else
+            echo "No job logs yet"
+          fi
+          ;;
+        *)
+          echo "Usage: $(basename "$0") ov job <command> [hour] [-w workspace]"
+          echo ""
+          echo "Commands:"
+          echo "  status              Check if job is running"
+          echo "  start [hour]        Start daily api-sync (default: 21 = 9 PM)"
+          echo "  stop                Stop and remove the job"
+          echo "  logs                Show job log"
+          echo ""
+          echo "Examples:"
+          echo "  $(basename "$0") ov job start               # Daily at 21:00"
+          echo "  $(basename "$0") ov job start 6             # Daily at 06:00"
+          echo "  $(basename "$0") ov job start 14 -w my-ws   # Daily at 14:00"
+          ;;
+      esac
+      exit 0
+      ;;
     *)
       echo "Usage: $(basename "$0") ov <command> [-w workspace]"
       echo ""
@@ -229,6 +348,10 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
       echo "  api-sync --week DATE  Sync a specific week (YYYY-MM-DD)"
       echo "  api-sync --source X   Sync one source (slack|linear|meets|epics)"
       echo "  api-sync --status     Show what's in OV vs what's in API"
+      echo "  job start [hour]      Daily api-sync job (default: 21 = 9 PM)"
+      echo "  job stop              Stop daily job"
+      echo "  job status            Check job status"
+      echo "  job logs              Show job log"
       exit 0
       ;;
   esac
@@ -537,7 +660,12 @@ while [[ $# -gt 0 ]]; do
       echo "  $(basename "$0") ov sync --status              Dry-run: show what changed"
       echo "  $(basename "$0") ov api-sync -w <workspace>    Sync Management API data → OV"
       echo "  $(basename "$0") ov api-sync --week YYYY-MM-DD Sync a specific week"
+      echo "  $(basename "$0") ov api-sync --source SOURCE   Sync one source (slack|linear|meets|epics)"
       echo "  $(basename "$0") ov api-sync --status          Show OV vs API state"
+      echo "  $(basename "$0") ov job start [hour]           Daily api-sync job (default: 21 = 9 PM)"
+      echo "  $(basename "$0") ov job stop                   Stop daily api-sync job"
+      echo "  $(basename "$0") ov job status                 Check job status"
+      echo "  $(basename "$0") ov job logs                   Show job log"
       echo ""
       echo "Browse:"
       echo "  $(basename "$0") ls                            List OV resources (default workspace)"

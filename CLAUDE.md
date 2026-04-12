@@ -18,9 +18,11 @@ jura                                    # Main CLI (bash, macOS bash 3.2 compati
 .openviking/plugin/mcp_bridge.py        # MCP server (OV search/read/list, port parameterized)
 .openviking/plugin/hooks/               # Claude Code lifecycle hooks (session memory)
 .openviking/plugin/scripts/ov_memory.py # Session + long-term memory bridge (Python 3)
-.openviking/plugin/scripts/ov_sync.py   # Sync engine (Python 3, git ls-files based)
+.openviking/plugin/scripts/ov_sync.py   # File sync engine (Python 3, git ls-files based)
+.openviking/plugin/scripts/ov_api_sync.py # API sync engine (Python 3, Management API → OV)
 .openviking/plugin/browse.py            # Interactive memory explorer
 .openviking/manifests/                  # Per-workspace sync state (gitignored)
+.openviking/staging/                    # API sync staging files (gitignored)
 apps/management-api/                    # FastAPI + PostgreSQL backend (Docker Compose)
 apps/management-api/static/             # Bundled UI files (epics-police.html, volume-mounted)
 ```
@@ -42,10 +44,24 @@ Workspace-specific config (`.openviking/ov.conf`, data, session state) stays per
 ./jura ov restart              # Start or restart all OV servers
 ./jura ov stop                 # Stop all servers
 ./jura ov logs                 # Last 100 log lines
-./jura ov sync                 # Incremental sync (default workspace)
+./jura ov sync                 # Incremental file sync (default workspace)
 ./jura ov sync --bootstrap     # Full re-ingest
 ./jura ov sync --status        # Dry-run
 ./jura ov sync -w <workspace>  # Sync a specific workspace
+
+# API Sync (Management API → OV vector DB)
+./jura ov api-sync -w <workspace>              # Sync current week, all sources
+./jura ov api-sync -w <workspace> --week DATE  # Specific week (YYYY-MM-DD)
+./jura ov api-sync -w <workspace> --source X   # One source (slack|linear|meets|epics)
+./jura ov api-sync -w <workspace> --status     # Show OV vs API state
+
+# API Sync Job (daily cron via launchd)
+./jura ov job start                # Daily at 21:00, default workspace
+./jura ov job start 6              # Daily at 06:00
+./jura ov job start -w <workspace> # Specific workspace
+./jura ov job stop                 # Stop and remove job
+./jura ov job status               # Check if job is running
+./jura ov job logs                 # Show job log
 
 # Browse
 jura ls                        # List OV resources (default workspace)
@@ -79,9 +95,10 @@ Workspaces are defined in `.jura/<workspace>.json` (tracked in git):
 
 - `port` — OpenViking server port for this workspace
 - `project_dir` — project root (where `.openviking/ov.conf` lives). Used by `jura serve`
-- `source_dir` — local directory to sync from
+- `source_dir` — local directory to sync from (file sync)
 - `include` — file patterns to sync (matched against git-tracked files)
 - `target_root` — OV URI root for ingested files
+- `api_url` — Management API base URL (e.g. `http://localhost:8100`). Required for `jura ov api-sync`
 
 Runtime config (`.env`): `JURA_DEFAULT_WORKSPACE`, `JURA_NAME`, `JURA_IDENTITY`, `JURA_MODEL`, search tuning vars (`JURA_RESULTS`, `JURA_READ`, `JURA_THRESHOLD`, `JURA_DECAY_DAYS`).
 
@@ -125,8 +142,9 @@ The skill has a **self-improving feedback loop**: the UI logs accept/reject/redi
 - `$HOME` override trick: creates temp dir with `ovcli.conf` so `ov` CLI targets the right workspace port (the CLI ignores `OV_URL` env var)
 - Recency decay: halves score every `JURA_DECAY_DAYS` days (default 10); decay factor floors at 0.01; URIs without dates are treated as evergreen
 - Date ranges that cross month boundaries (e.g. `30-to-03`) are detected and the month is incremented for the end date
-- Sync discovers files via `git ls-files` (automatically excludes node_modules, dist, etc.), then filters by `include` patterns from workspace settings
-- Manifests at `.openviking/manifests/<workspace>.json` store only sync state (last_sync_commit + file hashes)
+- File sync discovers files via `git ls-files` (automatically excludes node_modules, dist, etc.), then filters by `include` patterns from workspace settings
+- API sync fetches from Management API `/formatted` endpoints, writes staging files to `.openviking/staging/<workspace>/`, then nuke + re-ingest per week+source into `viking://resources/api/{week}/{source}/`. No manifest — each run is a clean replace. Staging files persist between runs for inspection, cleaned at start of next run
+- Manifests at `.openviking/manifests/<workspace>.json` store only file sync state (last_sync_commit + file hashes)
 - MCP bridge discovers memory roots dynamically by listing `viking://user/` and `viking://agent/`, then appending `/memories/` to each entry (e.g. `viking://user/default/memories/`, `viking://agent/<id>/memories/`). Never hardcode memory paths — OV uses intermediate namespace directories
 - **Plugin separation**: hooks derive `PLUGIN_ROOT` from `${BASH_SOURCE[0]}` (jura's scripts dir) and `PROJECT_DIR` from `$CLAUDE_PROJECT_DIR` (the consuming workspace). Consuming projects reference jura's hooks via absolute paths in their `.claude/settings.local.json`, while project-specific config (`.openviking/ov.conf`, session state) stays local
 

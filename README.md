@@ -29,6 +29,7 @@ provider API change — waiting on the external team to ship their v2 endpoint.
 |---------|-------------|
 | `jura "question"` | Search your docs, get a sourced answer |
 | `jura ov sync` | Keep local files indexed in OpenViking |
+| `jura ov api-sync` | Sync Management API data (Slack, Linear, Meets, Epics) into OpenViking |
 | `jura ov restart` | Manage OpenViking servers |
 | `jura api restart` | Run the team activity backend (Slack + Linear + Meets + Notion) |
 
@@ -106,6 +107,63 @@ jura ov sync -w 518 --dry-run
 
 File discovery uses `git ls-files`, filtered by `include` patterns from `.jura/<workspace>.json`. Sync state stored at `.openviking/manifests/<workspace>.json`.
 
+## API Sync
+
+Sync pre-formatted data from the Management API directly into OpenViking's vector DB. The API renders Slack messages, Linear tickets, meetings, and epics as markdown — this command fetches that formatted content and ingests it into OV, scoped by week.
+
+```bash
+# Show what's in OV vs what's available from the API
+jura ov api-sync --status -w command-center
+
+# Sync current week (all sources)
+jura ov api-sync -w command-center
+
+# Sync a specific week
+jura ov api-sync -w command-center --week 2026-04-06
+
+# Sync one source only
+jura ov api-sync -w command-center --source slack
+```
+
+Each run does a clean nuke + re-ingest for the target week+source. Running 100 times on the same week produces the same result — no duplicates. Staging files are written to `.openviking/staging/<workspace>/` (gitignored) and persist between runs for inspection; cleaned at the start of the next run.
+
+Schedule it to run daily via launchd:
+
+```bash
+# Start daily job at 9 PM (default)
+jura ov job start
+
+# Daily at 6 AM
+jura ov job start 6
+
+# Check status / stop
+jura ov job status
+jura ov job stop
+jura ov job logs
+```
+
+First arg to `start` is the hour (0-23, default 21). Each `start` unloads any existing job first — no duplicate jobs. Logs go to `.openviking/staging/ov-job.log`.
+
+Requires `api_url` in the workspace config (`.jura/<workspace>.json`):
+
+```json
+{
+  "port": 1934,
+  "api_url": "http://localhost:8100",
+  ...
+}
+```
+
+Data lands in OV at `viking://resources/api/{week}/{source}/{slug}`:
+
+```
+viking://resources/api/2026-04-06/
+├── slack/          (59 channel files)
+├── linear/         (497 ticket files)
+├── meets/          (27 meeting files)
+└── epics/          (43 epic files)
+```
+
 ## OpenViking Servers
 
 ```bash
@@ -151,7 +209,7 @@ The API itself runs on `http://localhost:8100` with auto-generated docs at `http
 
 ## Workspaces
 
-Each workspace is a `.jura/<name>.json` file mapping to an OpenViking instance (port, source dir, file patterns). Use `-w <name>` to target a workspace, or set `JURA_DEFAULT_WORKSPACE` in `.env`. See `.jura/example.json.template` for the format.
+Each workspace is a `.jura/<name>.json` file mapping to an OpenViking instance (port, source dir, file patterns). Use `-w <name>` to target a workspace, or set `JURA_DEFAULT_WORKSPACE` in `.env`. See `.jura/example.json.template` for the format. Add `"api_url"` to enable `jura ov api-sync` for that workspace.
 
 ## Recency Decay
 
@@ -213,7 +271,7 @@ All variables can be overridden per-query: `JURA_READ=2 jura "who owns the payme
                                           Answer
 ```
 
-**Left side:** `jura ov sync` keeps OpenViking indexed. Compares local files against SHA256 manifests, only re-ingests what changed.
+**Left side:** `jura ov sync` keeps OpenViking indexed from local files. `jura ov api-sync` does the same from Management API data (Slack, Linear, Meets, Epics) — fetches formatted markdown, writes to staging, nuke + re-ingest per week+source.
 
 **Right side:** `jura "question"` queries the indexed data. Dual search, decay-ranked, retrieval-only answers.
 
@@ -248,6 +306,7 @@ Jura also ships shared OpenViking plugins: MCP bridge, Claude Code session memor
 | v3.1 | 2026-03-23 | Workspace settings files (`.jura/*.json`), git-based file discovery, `jura ls` command, 518 workspace bootstrap |
 | v3.2 | 2026-03-23 | `jura serve` — start/stop/status for OV servers, `project_dir` in workspace settings, OpenViking upgraded to 0.2.9 |
 | v3.3 | 2026-04-04 | MCP bridge: dynamic memory root discovery (fixes `viking://user/memories/` → `viking://user/default/memories/`). Recency decay: fix month-crossing date ranges (`30-to-03` parsed as April 3, not March 3). Decay half-life raised from 5 to 10 days, decay factor floors at 0.01 |
+| v3.4 | 2026-04-12 | `jura ov api-sync` — sync Management API formatted data (Slack, Linear, Meets, Epics) into OV vector DB. Nuke + re-ingest per week+source, parallel fetch, staging dir. Fixed `ov` subcommand parser to pass through subcommand-specific flags |
 
 ## License
 

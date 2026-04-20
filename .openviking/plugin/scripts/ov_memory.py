@@ -30,6 +30,19 @@ class BackendInfo:
     local_data_path: str = ""
 
 
+class ServerUnreachable(RuntimeError):
+    """Raised when ov.conf configures an HTTP server but the health check fails.
+
+    Callers must treat this as a hard failure rather than falling back to local
+    mode — a silent fallback materializes a parallel OV workspace at the project
+    root and diverts memory writes away from the configured server.
+    """
+
+    def __init__(self, url: str) -> None:
+        super().__init__(f"OpenViking server unreachable at {url}")
+        self.url = url
+
+
 def _load_json(path: Path) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -62,13 +75,24 @@ def _health_check(url: str, timeout: float = 1.2) -> bool:
 
 
 def _resolve_local_data_path(project_dir: Path, ov_conf: Dict[str, Any]) -> str:
-    raw = ov_conf.get("storage", {}).get("vectordb", {}).get("path", "./data")
+    raw = ov_conf.get("storage", {}).get("vectordb", {}).get("path")
     if not raw:
-        raw = "./data"
+        raw = ".openviking/data-local"
     p = Path(str(raw)).expanduser()
     if not p.is_absolute():
         p = project_dir / p
     return str(p)
+
+
+def _build_server_url(host: str, port: Any) -> str:
+    if host in {"0.0.0.0", "::", "[::]"}:
+        host = "127.0.0.1"
+    if host.startswith("http://") or host.startswith("https://"):
+        base = host.rstrip("/")
+        if ":" in base.split("//", 1)[-1]:
+            return base
+        return f"{base}:{port}"
+    return f"http://{host}:{port}"
 
 
 def detect_backend(project_dir: Path, ov_conf: Dict[str, Any]) -> BackendInfo:
@@ -78,16 +102,10 @@ def detect_backend(project_dir: Path, ov_conf: Dict[str, Any]) -> BackendInfo:
     api_key = server_cfg.get("api_key") or ""
 
     if host and port:
-        if host in {"0.0.0.0", "::", "[::]"}:
-            host = "127.0.0.1"
-        if host.startswith("http://") or host.startswith("https://"):
-            base = host.rstrip("/")
-            url = f"{base}:{port}" if ":" not in base.split("//", 1)[-1] else base
-        else:
-            url = f"http://{host}:{port}"
-
+        url = _build_server_url(host, port)
         if _health_check(url):
             return BackendInfo(mode="http", url=url, api_key=str(api_key))
+        raise ServerUnreachable(url)
 
     return BackendInfo(
         mode="local",
@@ -442,7 +460,32 @@ def cmd_session_start(args: argparse.Namespace) -> Dict[str, Any]:
         }
 
     ov_conf = _load_json(ov_conf_path)
-    backend = detect_backend(project_dir, ov_conf)
+
+    try:
+        backend = detect_backend(project_dir, ov_conf)
+    except ServerUnreachable as exc:
+        # ov.conf specified an HTTP server but the health check failed.
+        # Mark state inactive so subsequent hooks in this Claude session
+        # cleanly no-op rather than reusing a half-built backend, and
+        # return a visible status so the user knows memory is off.
+        _save_json(
+            state_file,
+            {
+                "active": False,
+                "last_error": "server_unreachable",
+                "last_error_url": exc.url,
+                "last_error_at": int(time.time()),
+            },
+        )
+        return {
+            "ok": False,
+            "status_line": (
+                f"[openviking-memory] server unreachable at {exc.url} — "
+                "session memory disabled. Start it with `jura ov restart`."
+            ),
+            "error": "server_unreachable",
+            "url": exc.url,
+        }
 
     with OVClient(backend, ov_conf_path) as cli:
         session = cli.create_session()
@@ -634,7 +677,14 @@ def cmd_recall(args: argparse.Namespace) -> int:
 
     state = _load_state(state_file)
     ov_conf = _load_json(ov_conf_path)
-    backend = _build_backend_from_state_or_detect(state, project_dir, ov_conf)
+    try:
+        backend = _build_backend_from_state_or_detect(state, project_dir, ov_conf)
+    except ServerUnreachable as exc:
+        print(
+            f"Memory recall unavailable: OpenViking server unreachable at {exc.url}. "
+            "Start it with `jura ov restart`."
+        )
+        return 0
 
     contexts: List[Dict[str, Any]] = []
 

@@ -150,11 +150,12 @@ command -v jura   && echo "jura: OK"    || echo "jura: MISSING"
 ### Check OpenViking server is running
 
 ```bash
-# Replace with your workspace port
-OV_URL=http://127.0.0.1:1934 ov ls viking://resources/
+jura ls -w <workspace> viking://resources/
 ```
 
-You should see a list of indexed resources. If you get a connection error, start your OpenViking server first.
+You should see a list of indexed resources. If you get a connection error, start your OpenViking server first (`jura ov restart -w <workspace>`).
+
+> The raw `ov` CLI ignores `OV_URL` — it only reads `~/.openviking/ovcli.conf`. Use `jura ls` (which sets the per-workspace port via a scoped `$HOME`) or run `ov` with a temp `$HOME` pointing at a `ovcli.conf` with the right URL.
 
 ### Run a test query
 
@@ -321,8 +322,8 @@ This means the same hook scripts work for any workspace without modification.
 ### "No results found"
 
 1. **Threshold too high** — Try `JURA_THRESHOLD=0.05 jura "your question"` to see if results exist below the cutoff.
-2. **OV server not running** — Check `OV_URL=http://127.0.0.1:<port> ov ls viking://resources/`.
-3. **Nothing indexed** — Run `OV_URL=http://127.0.0.1:<port> ov ls viking://resources/` to see what's in the knowledge base.
+2. **OV server not running** — Check `jura ov status` (or `jura ls -w <workspace> viking://resources/`).
+3. **Nothing indexed** — Run `jura ls -w <workspace> viking://resources/` to see what's in the knowledge base.
 
 ### "Could not read any documents"
 

@@ -457,11 +457,11 @@ IMPLICIT_EPIC_MIN_DIRECT_CHILDREN = 2
 IMPLICIT_EPIC_MIN_DESCENDANTS = 4
 
 # Pass 1 deterministic scoring — signal weights (Bayesian priors, auto-calibrated)
-WEIGHT_LABEL_OVERLAP = 29.7      # was 30.4 — stable (within 5% tolerance)
-WEIGHT_TITLE_OVERLAP = 50.6      # was 47.6 — calibrated 2026-04-16 (30 decisions, +6.3%)
-WEIGHT_DESCRIPTION_OVERLAP = 14.4 # was 16.9 — calibrated 2026-04-16 (30 decisions, -14.8%)
-WEIGHT_SQUAD_MATCH = 2.6         # stable
-WEIGHT_NOTION_MATCH = 2.6        # stable
+WEIGHT_LABEL_OVERLAP = 31.0      # was 29.7 — stable (within 5% tolerance)
+WEIGHT_TITLE_OVERLAP = 48.1      # was 50.6 — stable (within 5% tolerance)
+WEIGHT_DESCRIPTION_OVERLAP = 15.6 # was 14.4 — calibrated 2026-04-20 (31 decisions, +8.3%)
+WEIGHT_SQUAD_MATCH = 2.7         # was 2.6 — stable (within 5% tolerance)
+WEIGHT_NOTION_MATCH = 2.7        # was 2.6 — stable (within 5% tolerance)
 
 # Pass 1 deterministic scoring — thresholds
 PASS1_LOCK_THRESHOLD = 70       # ≥70 locks a match, skips Pass 2

@@ -19,6 +19,7 @@ CLIENT = httpx.Client(base_url=API, timeout=30)
 
 # --- Health & Infrastructure ---
 
+
 def test_health():
     r = CLIENT.get("/health")
     assert r.status_code == 200
@@ -48,6 +49,7 @@ def test_weeks_have_data():
 
 # --- Week Resolution ---
 
+
 def test_week_snapping_any_day():
     """Any day in the week resolves to the same Monday-Sunday bucket."""
     counts = []
@@ -67,7 +69,9 @@ def test_different_weeks_different_data():
         assert r.status_code == 200
         week_counts[monday] = r.json()["total"]
     # With 1-week sprints, at least one week should differ
-    assert len(set(week_counts.values())) > 1, f"All weeks have same count: {week_counts}"
+    assert (
+        len(set(week_counts.values())) > 1
+    ), f"All weeks have same count: {week_counts}"
 
 
 def test_no_cross_week_leakage_slack():
@@ -91,16 +95,21 @@ def test_no_cross_week_leakage_slack():
 
 # --- Slack Deep Links ---
 
+
 def test_slack_real_channel_ids():
     """All slack messages must have real Slack channel IDs (not parsed- fakes)."""
     for week in ["2026-03-16", "2026-03-23", "2026-03-30"]:
         r = CLIENT.get("/slack", params={"week": week, "limit": 5000})
         assert r.status_code == 200
         for msg in r.json()["items"]:
-            assert not msg["channel_id"].startswith("parsed-"), \
-                f"Fake channel_id found: {msg['channel_id']} in week {week}"
-            assert msg["channel_id"][0] in ("C", "D", "G"), \
-                f"Invalid channel_id prefix: {msg['channel_id']} in week {week}"
+            assert not msg["channel_id"].startswith(
+                "parsed-"
+            ), f"Fake channel_id found: {msg['channel_id']} in week {week}"
+            assert msg["channel_id"][0] in (
+                "C",
+                "D",
+                "G",
+            ), f"Invalid channel_id prefix: {msg['channel_id']} in week {week}"
 
 
 def test_slack_real_timestamps():
@@ -118,7 +127,9 @@ def test_slack_real_timestamps():
 
 def test_slack_thread_replies_have_thread_ts():
     """Thread replies must reference their parent via thread_ts."""
-    r = CLIENT.get("/slack", params={"week": "2026-03-16", "is_thread_reply": True, "limit": 100})
+    r = CLIENT.get(
+        "/slack", params={"week": "2026-03-16", "is_thread_reply": True, "limit": 100}
+    )
     assert r.status_code == 200
     assert r.json()["total"] > 0
     for msg in r.json()["items"]:
@@ -128,6 +139,7 @@ def test_slack_thread_replies_have_thread_ts():
 
 
 # --- Linear ---
+
 
 def test_linear_tickets_have_cycle_info():
     r = CLIENT.get("/linear", params={"week": "2026-03-16", "limit": 5})
@@ -156,13 +168,16 @@ def test_linear_filters():
     for ticket in r.json()["items"]:
         assert ticket["status_type"] == "done"
 
-    r = CLIENT.get("/linear", params={"week": "2026-03-30", "status_type": "in_progress"})
+    r = CLIENT.get(
+        "/linear", params={"week": "2026-03-30", "status_type": "in_progress"}
+    )
     assert r.status_code == 200
     for ticket in r.json()["items"]:
         assert ticket["status_type"] == "in_progress"
 
 
 # --- Meets ---
+
 
 def test_meets_different_counts_per_week():
     counts = {}
@@ -193,6 +208,7 @@ def test_meets_title_search():
 
 # --- Epics ---
 
+
 def test_epics_with_sub_pages():
     r = CLIENT.get("/epics", params={"week": "2026-03-23"})
     assert r.status_code == 200
@@ -212,7 +228,13 @@ def test_epics_idempotent_push():
     """Pushing the same epics twice to current week should not duplicate."""
     # Use current week (historical weeks are protected by 409)
     payload = {
-        "epics": [{"notion_page_id": "test-idem", "title": "Idempotent Test", "status": "Test"}],
+        "epics": [
+            {
+                "notion_page_id": "test-idem",
+                "title": "Idempotent Test",
+                "status": "Test",
+            }
+        ],
     }
     r = CLIENT.post("/epics/fetch", json=payload)
     assert r.status_code == 200
@@ -228,6 +250,7 @@ def test_epics_idempotent_push():
 
 # --- People ---
 
+
 def test_people_cross_linked():
     """People should have identities from multiple sources."""
     r = CLIENT.get("/people", params={"limit": 500})
@@ -242,13 +265,14 @@ def test_people_cross_linked():
 
 
 def test_people_filter_by_name():
-    r = CLIENT.get("/people", params={"name": "denis"})
+    r = CLIENT.get("/people", params={"name": "juan"})
     assert r.status_code == 200
     assert r.json()["total"] >= 1
-    assert "denis" in r.json()["items"][0]["display_name"].lower()
+    assert "juan" in r.json()["items"][0]["display_name"].lower()
 
 
 # --- Pagination ---
+
 
 def test_pagination():
     r1 = CLIENT.get("/slack", params={"week": "2026-03-16", "limit": 10, "offset": 0})
@@ -264,10 +288,13 @@ def test_pagination():
 
 # --- Fetch Log ---
 
+
 def test_fetch_log_in_health():
     r = CLIENT.get("/health")
     assert r.status_code == 200
     sources = r.json()["sources"]
     for source in ["slack", "linear", "meets"]:
-        assert sources[source]["last_status"] in ("success", "partial"), \
-            f"{source} last_status={sources[source]['last_status']}"
+        assert sources[source]["last_status"] in (
+            "success",
+            "partial",
+        ), f"{source} last_status={sources[source]['last_status']}"

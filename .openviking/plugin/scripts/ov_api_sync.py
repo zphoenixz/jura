@@ -29,14 +29,21 @@ from urllib.error import URLError
 
 
 # ---------------------------------------------------------------------------
-# Paths — derived from script location (follows symlinks)
+# Paths — derived from script location, overridable via env vars.
+#
+# When run from the repo (default), paths resolve relative to SCRIPT_DIR
+# (jura repo). When run from a staged copy under ~/.openviking/job/<ws>/
+# (launchd-triggered to dodge TCC on protected home folders), the plist
+# sets JURA_ENV_FILE / JURA_SETTINGS_DIR / JURA_STAGING_ROOT explicitly
+# so the script never tries to read the original repo.
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR = Path(__file__).resolve().parent          # .openviking/plugin/scripts/
-JURA_ROOT = SCRIPT_DIR.parent.parent.parent           # jura repo root
-ENV_FILE = JURA_ROOT / ".env"
-SETTINGS_DIR = JURA_ROOT / ".jura"
-STAGING_ROOT = JURA_ROOT / ".openviking" / "staging"
+_DEFAULT_JURA_ROOT = SCRIPT_DIR.parent.parent.parent  # jura repo root (when in-repo)
+
+ENV_FILE = Path(os.environ.get("JURA_ENV_FILE") or (_DEFAULT_JURA_ROOT / ".env")).resolve()
+SETTINGS_DIR = Path(os.environ.get("JURA_SETTINGS_DIR") or (_DEFAULT_JURA_ROOT / ".jura")).resolve()
+STAGING_ROOT = Path(os.environ.get("JURA_STAGING_ROOT") or (_DEFAULT_JURA_ROOT / ".openviking" / "staging")).resolve()
 
 SOURCES = ["slack", "linear", "meets", "epics"]
 OV_TARGET_ROOT = "viking://resources/api"
@@ -142,18 +149,30 @@ def api_health(api_url: str) -> bool:
         return False
 
 
-def fetch_formatted(api_url: str, source: str, week: str) -> List[dict]:
-    """Fetch formatted documents from Management API."""
+def fetch_formatted(api_url: str, source: str, week: str, retries: int = 3) -> List[dict]:
+    """Fetch formatted documents from Management API.
+
+    Retries network errors with exponential backoff (2s, 4s). JSON decode
+    errors are NOT retried — they indicate a server-side bug, not a transient
+    failure, and retrying just wastes time.
+    """
     url = f"{api_url}/api/v1/{source}/formatted?week={week}"
-    try:
-        resp = urlopen(Request(url), timeout=60)
-        return json.loads(resp.read().decode("utf-8"))
-    except URLError as e:
-        log(f"Failed to fetch {source}: {e}", "ERROR")
-        return []
-    except json.JSONDecodeError as e:
-        log(f"Invalid JSON from {source}: {e}", "ERROR")
-        return []
+    last_err = ""
+    for attempt in range(1, retries + 1):
+        try:
+            resp = urlopen(Request(url), timeout=60)
+            return json.loads(resp.read().decode("utf-8"))
+        except URLError as e:
+            last_err = str(e)
+            if attempt < retries:
+                delay = 2 ** attempt
+                log(f"Fetch {source} attempt {attempt}/{retries} failed: {e} — retrying in {delay}s", "WARN")
+                time.sleep(delay)
+        except json.JSONDecodeError as e:
+            log(f"Invalid JSON from {source}: {e}", "ERROR")
+            return []
+    log(f"Failed to fetch {source} after {retries} attempts: {last_err}", "ERROR")
+    return []
 
 
 def ensure_ov_parents(week: str, port: int) -> None:

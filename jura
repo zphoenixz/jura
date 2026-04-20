@@ -236,19 +236,103 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
 
       case "$OV_JOB_CMD" in
         status)
+          # Self-healing: disable set -e so a missing key / empty grep / quiet
+          # launchctl can't truncate output. Every field has an explicit fallback
+          # rendered to the user — no silent exits, no missing lines.
+          set +e
           pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
-          if [[ -f "$pf" ]]; then
-            JOB_HR=$(defaults read "$pf" StartCalendarInterval 2>/dev/null | grep Hour | grep -o '[0-9]*' || echo "21")
-            JOB_WS_SAVED=$(defaults read "$pf" EnvironmentVariables 2>/dev/null | grep OV_JOB_WORKSPACE -A1 | tail -1 | tr -d ' ";' || echo "$OV_JOB_WS")
-            echo "Job: active (daily at $(printf '%02d' "$JOB_HR"):00)"
-            echo "Workspace: $JOB_WS_SAVED"
-            if [[ -f "$OV_JOB_LOGFILE" ]]; then
-              LAST_LINE=$(grep -E '^\[' "$OV_JOB_LOGFILE" 2>/dev/null | tail -1)
-              [[ -n "$LAST_LINE" ]] && echo "Last log: $LAST_LINE"
-            fi
-          else
+          if [[ ! -f "$pf" ]]; then
             echo "Job: not running"
+          else
+            # Schedule hour
+            JOB_HR=$(defaults read "$pf" StartCalendarInterval 2>/dev/null \
+                      | awk '/Hour/ { gsub(/[^0-9]/,"",$NF); print $NF; exit }')
+            [[ -z "$JOB_HR" ]] && JOB_HR="?"
+
+            # Workspace — the ProgramArguments token after "-w". The old code
+            # read EnvironmentVariables which was never written by `start`,
+            # so it silently fell back to the current default every time.
+            JOB_WS_SAVED=$(defaults read "$pf" ProgramArguments 2>/dev/null \
+                            | awk '
+                                /"-w"/ { found=1; next }
+                                found==1 { gsub(/[^a-zA-Z0-9_.-]/,"",$0); print; exit }')
+            [[ -z "$JOB_WS_SAVED" ]] && JOB_WS_SAVED="$OV_JOB_WS"
+
+            # launchctl truth — how many times it ran, last exit code, current state.
+            # The plist existing does NOT mean the job is succeeding — status
+            # must reflect launchd's view, not just "a file is on disk".
+            LC_STATE=$(launchctl print "gui/$(id -u)/${OV_JOB_PLIST}" 2>/dev/null)
+            RUNS=$(echo "$LC_STATE" | awk -F' = ' '/^[[:space:]]*runs / { print $2; exit }')
+            LAST_EXIT=$(echo "$LC_STATE" | awk -F' = ' '/^[[:space:]]*last exit code / { print $2; exit }')
+            STATE=$(echo "$LC_STATE" | awk -F' = ' '/^[[:space:]]*state / { print $2; exit }')
+
+            # Next run: today if HH:00 is still in the future, else tomorrow
+            if [[ "$JOB_HR" =~ ^[0-9]+$ ]]; then
+              NOW_HR_RAW=$(date +%H); NOW_HR=${NOW_HR_RAW#0}; NOW_HR=${NOW_HR:-0}
+              JOB_HR_INT=${JOB_HR#0}; JOB_HR_INT=${JOB_HR_INT:-0}
+              SCHEDULE="daily at $(printf '%02d' "$JOB_HR_INT"):00"
+              if [[ "$NOW_HR" -lt "$JOB_HR_INT" ]]; then
+                NEXT_WHEN="today $(printf '%02d' "$JOB_HR_INT"):00"
+              else
+                NEXT_WHEN="tomorrow $(printf '%02d' "$JOB_HR_INT"):00"
+              fi
+            else
+              SCHEDULE="(unknown)"
+              NEXT_WHEN="(unknown)"
+            fi
+
+            echo "Job:       active"
+            echo "Schedule:  $SCHEDULE"
+            echo "Workspace: $JOB_WS_SAVED"
+            echo "State:     ${STATE:-unknown}"
+            echo "Runs:      ${RUNS:-0}"
+            # "last exit code" can be "(never exited)" while a job is mid-run.
+            # Don't flag that as FAILED — it just means launchd hasn't seen
+            # a completion yet.
+            if [[ "$STATE" == "running" ]]; then
+              echo "Last exit: (in progress)"
+            elif [[ -z "$LAST_EXIT" ]] || [[ "$LAST_EXIT" == "(never exited)" ]]; then
+              echo "Last exit: (never completed)"
+            elif [[ "$LAST_EXIT" == "0" ]]; then
+              echo "Last exit: 0 (ok)"
+            else
+              echo -e "Last exit: ${RED}${LAST_EXIT} (FAILED)${RESET}"
+            fi
+            echo "Next run:  $NEXT_WHEN"
+            echo "Log:       $OV_JOB_LOGFILE"
+
+            # Recent log, verbatim. No ^\[ filter — raw stderr from launchd
+            # (e.g. "Operation not permitted") is exactly what you need when
+            # things break. `ov job start` truncates the log on re-register,
+            # so what you see here reflects the CURRENT plist's runs only.
+            if [[ -f "$OV_JOB_LOGFILE" && -s "$OV_JOB_LOGFILE" ]]; then
+              echo ""
+              echo "Recent log (last 5 non-empty lines):"
+              grep -v '^[[:space:]]*$' "$OV_JOB_LOGFILE" 2>/dev/null | tail -5 | sed 's/^/  /'
+
+              # Defensive: if TCC is still somehow involved, surface it.
+              # The current plist stages to ~/.openviking/ so this path
+              # shouldn't fire — but if it does, the user needs to know.
+              if tail -20 "$OV_JOB_LOGFILE" 2>/dev/null | grep -q "Operation not permitted"; then
+                echo ""
+                echo -e "${RED}⚠  Recent log shows 'Operation not permitted' — something is hitting TCC.${RESET}"
+                echo "   Run: jura ov job stop && jura ov job start $JOB_HR -w $JOB_WS_SAVED"
+                echo "   That re-stages under ~/.openviking/ which should dodge TCC entirely."
+              fi
+            fi
+
+            # Drift check: the staged runner is a snapshot. If the repo
+            # copy of ov_api_sync.py has been edited since the last start,
+            # the scheduled job is running stale code. Nudge, don't block.
+            SRC_RUNNER="$SCRIPT_DIR/.openviking/plugin/scripts/ov_api_sync.py"
+            STAGED_RUNNER="$HOME/.openviking/job/${JOB_WS_SAVED}/ov_api_sync.py"
+            if [[ -f "$SRC_RUNNER" && -f "$STAGED_RUNNER" && "$SRC_RUNNER" -nt "$STAGED_RUNNER" ]]; then
+              echo ""
+              echo -e "${DIM}Note: repo ov_api_sync.py is newer than staged copy.${RESET}"
+              echo -e "${DIM}  Run \`jura ov job start $JOB_HR -w $JOB_WS_SAVED\` to re-stage.${RESET}"
+            fi
           fi
+          set -e
           ;;
         start)
           HOUR="${OV_JOB_HOUR:-21}"
@@ -258,15 +342,74 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
             exit 1
           fi
 
-          # Resolve jura path (follow symlinks to real script)
-          JURA_BIN="$SCRIPT_DIR/jura"
+          # TCC-safe staging: copy the sync script + workspace config + .env
+          # into ~/.openviking/job/<ws>/ (an unprotected location) and point
+          # launchd at the staged copy. This mirrors how `api job` avoids
+          # TCC — launchd only ever touches /usr/bin, /bin, ~/.openviking,
+          # and localhost, none of which are TCC-gated. Result: no Full Disk
+          # Access grant needed even if the repo lives under ~/Desktop.
+          #
+          # Trade-off: the staged runner is a snapshot. If you edit
+          # ov_api_sync.py, rerun `jura ov job start` to re-stage.
+          JOB_DIR="$HOME/.openviking/job/${OV_JOB_WS}"
+          JOB_SCRIPT="$JOB_DIR/ov_api_sync.py"
+          JOB_SETTINGS_DIR="$JOB_DIR/.jura"
+          JOB_STAGING_DIR="$JOB_DIR/staging"
+          JOB_ENV_FILE="$JOB_DIR/.env"
+
+          SRC_SCRIPT="$SCRIPT_DIR/.openviking/plugin/scripts/ov_api_sync.py"
+          SRC_WS_SETTINGS="$SCRIPT_DIR/.jura/${OV_JOB_WS}.json"
+          SRC_ENV="$SCRIPT_DIR/.env"
+
+          if [[ ! -f "$SRC_SCRIPT" ]]; then
+            echo -e "${RED}Missing source script: $SRC_SCRIPT${RESET}" >&2
+            exit 1
+          fi
+          if [[ ! -f "$SRC_WS_SETTINGS" ]]; then
+            echo -e "${RED}Missing workspace config: $SRC_WS_SETTINGS${RESET}" >&2
+            exit 1
+          fi
+
+          mkdir -p "$JOB_DIR" "$JOB_SETTINGS_DIR" "$JOB_STAGING_DIR"
+          cp "$SRC_SCRIPT" "$JOB_SCRIPT"
+          cp "$SRC_WS_SETTINGS" "$JOB_SETTINGS_DIR/${OV_JOB_WS}.json"
+          [[ -f "$SRC_ENV" ]] && cp "$SRC_ENV" "$JOB_ENV_FILE"
+
+          # Resolve python3 and the ov CLI from the current (Terminal) session,
+          # which has PATH set up. Launchd's default PATH is minimal, so we
+          # bake in the directories we know we need via EnvironmentVariables.
+          PYTHON_BIN=$(command -v python3 || echo "/usr/bin/python3")
+          OV_BIN=$(command -v ov || true)
+          if [[ -z "$OV_BIN" ]]; then
+            echo -e "${RED}ov CLI not found on PATH — install openviking first${RESET}" >&2
+            exit 1
+          fi
+          OV_DIR=$(dirname "$OV_BIN")
+          PYTHON_DIR=$(dirname "$PYTHON_BIN")
+          JOB_PATH="${OV_DIR}:${PYTHON_DIR}:/usr/local/bin:/usr/bin:/bin"
 
           pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
           mkdir -p "$HOME/Library/LaunchAgents"
           mkdir -p "$(dirname "$OV_JOB_LOGFILE")"
 
+          # Truncate the log so `ov job status` reflects only runs from the
+          # current plist. Old "Operation not permitted" errors from a
+          # pre-staging plist would otherwise linger and confuse diagnosis.
+          : > "$OV_JOB_LOGFILE"
+
           # Always unload existing first — prevents duplicate jobs
           [[ -f "$pf" ]] && launchctl unload "$pf" 2>/dev/null
+
+          # Outer retry loop: up to 3 attempts with 5-min gaps. A single
+          # flaky network moment or transient OV crash shouldn't cost a
+          # day of freshness. Per-source fetch retries live inside the
+          # Python script; this outer loop handles crashes + hard errors
+          # that kill the whole process.
+          #
+          # Note: uses "if CMD; then" instead of "CMD && ..." because && in
+          # an XML <string> would have to be escaped as &amp;&amp;. Using ;
+          # and if keeps the plist readable.
+          OV_JOB_RETRY_CMD="i=0; while [ \$i -lt 3 ]; do i=\$((i+1)); if \"${PYTHON_BIN}\" \"${JOB_SCRIPT}\" sync \"${OV_JOB_WS}\"; then exit 0; fi; if [ \$i -lt 3 ]; then sleep 300; fi; done; exit 1"
 
           printf '%s\n' \
             '<?xml version="1.0" encoding="UTF-8"?>' \
@@ -275,12 +418,18 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
             '<dict>' \
             "  <key>Label</key><string>${OV_JOB_PLIST}</string>" \
             '  <key>ProgramArguments</key><array>' \
-            "    <string>${JURA_BIN}</string>" \
-            '    <string>ov</string>' \
-            '    <string>api-sync</string>' \
-            '    <string>-w</string>' \
-            "    <string>${OV_JOB_WS}</string>" \
+            '    <string>/bin/sh</string>' \
+            '    <string>-c</string>' \
+            "    <string>${OV_JOB_RETRY_CMD}</string>" \
             '  </array>' \
+            '  <key>EnvironmentVariables</key>' \
+            '  <dict>' \
+            "    <key>PATH</key><string>${JOB_PATH}</string>" \
+            "    <key>HOME</key><string>${HOME}</string>" \
+            "    <key>JURA_ENV_FILE</key><string>${JOB_ENV_FILE}</string>" \
+            "    <key>JURA_SETTINGS_DIR</key><string>${JOB_SETTINGS_DIR}</string>" \
+            "    <key>JURA_STAGING_ROOT</key><string>${JOB_STAGING_DIR}</string>" \
+            '  </dict>' \
             '  <key>StartCalendarInterval</key>' \
             '  <dict>' \
             "    <key>Hour</key><integer>${HOUR}</integer>" \
@@ -294,9 +443,66 @@ if [[ "${1:-}" == "ov" || "${1:-}" == "serve" ]]; then
             '</dict></plist>' > "$pf"
 
           launchctl load "$pf" 2>/dev/null
-          echo "Job started — api-sync daily at $(printf '%02d' "$HOUR"):00"
-          echo "Workspace: $OV_JOB_WS"
-          echo "Log: $OV_JOB_LOGFILE"
+          echo "Job registered — api-sync daily at $(printf '%02d' "$HOUR"):00"
+          echo "Workspace:  $OV_JOB_WS"
+          echo "Staged at:  $JOB_DIR"
+          echo "Log:        $OV_JOB_LOGFILE"
+
+          # Smoke test: kickstart an immediate run so TCC / exec / env issues
+          # surface NOW, not silently at 21:00 tomorrow. The real schedule
+          # still fires at HH:00 — this just verifies the plist can execute
+          # at all.
+          echo ""
+          echo "Smoke-testing — running once now..."
+
+          # Remember log size so we can show ONLY new output from this run
+          LOG_BEFORE_BYTES=0
+          [[ -f "$OV_JOB_LOGFILE" ]] && LOG_BEFORE_BYTES=$(wc -c < "$OV_JOB_LOGFILE" | tr -d ' ')
+
+          launchctl kickstart -k "gui/$(id -u)/${OV_JOB_PLIST}" 2>/dev/null || true
+
+          # Poll up to 10s for the run to complete. api-sync typically takes
+          # longer than 10s when it actually works, so "state=not running"
+          # within 10s almost always means an immediate failure (exec denied,
+          # missing dep, bad args).
+          set +e
+          EXIT_CODE=""
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 1
+            LC_SNAPSHOT=$(launchctl print "gui/$(id -u)/${OV_JOB_PLIST}" 2>/dev/null)
+            RUN_STATE=$(echo "$LC_SNAPSHOT" | awk -F' = ' '/^[[:space:]]*state / { print $2; exit }')
+            EXIT_CODE=$(echo "$LC_SNAPSHOT" | awk -F' = ' '/^[[:space:]]*last exit code / { print $2; exit }')
+            [[ "$RUN_STATE" != "running" && -n "$EXIT_CODE" ]] && break
+          done
+
+          if [[ "$RUN_STATE" == "running" ]]; then
+            echo "  Still running after 10s — looks healthy. Schedule is live."
+          elif [[ -z "$EXIT_CODE" ]]; then
+            echo -e "  ${RED}Could not read launchctl state — check manually: jura ov job status${RESET}"
+          elif [[ "$EXIT_CODE" == "0" ]]; then
+            echo "  Finished with exit 0. Schedule is live."
+          else
+            echo -e "  ${RED}Smoke test FAILED — exit code $EXIT_CODE${RESET}"
+            if [[ -f "$OV_JOB_LOGFILE" ]]; then
+              LOG_AFTER_BYTES=$(wc -c < "$OV_JOB_LOGFILE" | tr -d ' ')
+              if [[ "$LOG_AFTER_BYTES" -gt "$LOG_BEFORE_BYTES" ]]; then
+                echo "  New log output:"
+                tail -c $((LOG_AFTER_BYTES - LOG_BEFORE_BYTES)) "$OV_JOB_LOGFILE" \
+                  | grep -v '^[[:space:]]*$' | sed 's/^/    /'
+              fi
+              # Defensive TCC check — the staging flow should dodge TCC
+              # entirely, but if something still triggers it, flag clearly.
+              if tail -20 "$OV_JOB_LOGFILE" 2>/dev/null | grep -q "Operation not permitted"; then
+                echo ""
+                echo -e "  ${RED}⚠  TCC is still involved — staging dir or ov CLI is in a protected path.${RESET}"
+                echo "     Check: ls -ld $JOB_DIR (should be under ~/.openviking, not ~/Desktop)"
+              fi
+            fi
+            echo ""
+            echo "  The daily schedule is still registered but will keep failing"
+            echo "  until the above is fixed."
+          fi
+          set -e
           ;;
         stop)
           pf="$HOME/Library/LaunchAgents/${OV_JOB_PLIST}.plist"
@@ -394,9 +600,15 @@ if [[ "${1:-}" == "api" ]]; then
 
   case "$API_CMD" in
     status)
-      # Check if containers are running
-      if docker compose -f "$API_DIR/docker-compose.yml" ps --status running 2>/dev/null | grep -q "api"; then
-        echo -e "${DIM}Containers running${RESET}" >&2
+      # Health endpoint is the source of truth — the container may be running
+      # under a different compose project, or `ps --status running` may not be
+      # supported by older docker compose versions.
+      if curl -sf "http://localhost:8100/api/v1/health" > /dev/null 2>&1; then
+        if docker compose -f "$API_DIR/docker-compose.yml" ps 2>/dev/null | grep -q " Up "; then
+          echo -e "${DIM}Containers running${RESET}" >&2
+        else
+          echo -e "${DIM}API reachable on :8100 (containers not detected via this compose file)${RESET}" >&2
+        fi
         curl -s "http://localhost:8100/api/v1/health" | python3 -c "
 import json, sys
 from datetime import datetime, timedelta, timezone
@@ -467,29 +679,54 @@ else:
 
       case "$JOB_CMD" in
         status)
+          # Self-healing: each section is independent. We disable `set -e` for
+          # the duration of rendering so a single failing pipeline (SIGPIPE,
+          # malformed JSON, network blip) can never silently truncate output.
+          # Failures must surface as a visible fallback line, not a missing one.
+          set +e
           if [[ -f "$HOME/Library/LaunchAgents/${PLIST_NAME}.plist" ]]; then
             JOB_INTERVAL=$(defaults read "$HOME/Library/LaunchAgents/${PLIST_NAME}" StartInterval 2>/dev/null || echo "1200")
             echo "Job: active (every $((JOB_INTERVAL / 60)) min)"
 
-            # Check if curl is actively running (request pending)
-            CURL_PID=$(pgrep -f "localhost:8100/api/v1/.*/fetch" 2>/dev/null || true)
-            if [[ -n "$CURL_PID" ]]; then
-              ACTIVE_URL=$(ps -p $CURL_PID -o args= 2>/dev/null | grep -o '/api/v1/[a-z]*/fetch' | head -1)
-              ACTIVE_SRC=$(echo "$ACTIVE_URL" | sed 's|/api/v1/||;s|/fetch||')
-              echo "Running: POST $ACTIVE_URL (pid $CURL_PID)"
+            # Check if curl is actively running (request pending).
+            # Anchor on /usr/bin/curl at the start of args to avoid matching
+            # the parent /bin/sh -c wrapper, whose args contain "curl" too.
+            ACTIVE_LINE=$(pgrep -lf "^/usr/bin/curl .*localhost:8100/api/v1/.*/fetch" 2>/dev/null | head -1)
+            if [[ -n "$ACTIVE_LINE" ]]; then
+              ACTIVE_PID=${ACTIVE_LINE%% *}
+              ACTIVE_URL=$(echo "$ACTIVE_LINE" | grep -o '/api/v1/[a-z]*/fetch' | head -1)
+              echo "Running: POST ${ACTIVE_URL:-?} (pid $ACTIVE_PID)"
             else
               echo "Running: idle (waiting for next interval)"
             fi
 
-            # Per-source last completed fetch
-            curl -sf "http://localhost:8100/api/v1/health" 2>/dev/null | python3 -c "
-import json, sys
+            # Fetch health ONCE, reuse for both per-source rows and Next: line.
+            # Surface the failure explicitly instead of leaving the user staring
+            # at a one-line response wondering what happened.
+            HEALTH_JSON=$(curl -sf -m 5 "http://localhost:8100/api/v1/health" 2>/dev/null)
+            if [[ -z "$HEALTH_JSON" ]]; then
+              echo "  (health unreachable — is the API running? jura api status)"
+            else
+              echo "$HEALTH_JSON" | JOB_INTERVAL="$JOB_INTERVAL" python3 -c "
+import json, os, sys
 from datetime import datetime, timedelta, timezone
 local_tz = timezone(timedelta(hours=-4))
+
+# Self-healing: each row and the Next: line are independently guarded so a
+# single bad timestamp or missing key can never truncate the rest of the
+# output. The previous monolithic try/except meant one bad source would
+# silently drop the three sources after it AND the Next: line.
 try:
     d = json.load(sys.stdin)
-    for src in ['slack', 'linear', 'meets', 'epics']:
-        v = d['sources'].get(src, {})
+except Exception as e:
+    print(f'  (could not parse health JSON: {e})')
+    sys.exit(0)
+
+sources = d.get('sources', {}) if isinstance(d, dict) else {}
+
+for src in ['slack', 'linear', 'meets', 'epics']:
+    try:
+        v = sources.get(src, {}) or {}
         status = v.get('last_status') or 'never'
         raw_ts = v.get('last_fetched') or ''
         if status == 'started':
@@ -500,32 +737,30 @@ try:
             print(f'  {src:8s} {status:8s} {local_dt.strftime(\"%Y-%m-%d %H:%M:%S\")}')
         else:
             print(f'  {src:8s} never fetched')
-except: pass
-" 2>/dev/null
+    except Exception as e:
+        print(f'  {src:8s} (row error: {e})')
 
-            # Next run estimate
-            NEXT_INFO=$(curl -sf "http://localhost:8100/api/v1/health" 2>/dev/null | python3 -c "
-import json, sys
-from datetime import datetime, timedelta, timezone
-local_tz = timezone(timedelta(hours=-4))
 try:
-    d = json.load(sys.stdin)
-    times = [s['last_fetched'] for s in d['sources'].values() if s.get('last_fetched')]
+    times = [s.get('last_fetched') for s in sources.values() if isinstance(s, dict) and s.get('last_fetched')]
     if times:
+        interval = int(os.environ.get('JOB_INTERVAL', '1200'))
         latest_utc = datetime.fromisoformat(max(times).replace('Z', '+00:00'))
-        nxt_utc = latest_utc + timedelta(seconds=$JOB_INTERVAL)
+        nxt_utc = latest_utc + timedelta(seconds=interval)
         now_utc = datetime.now(timezone.utc)
         nxt_local = nxt_utc.astimezone(local_tz)
-        if nxt_utc < now_utc: print('imminent')
+        if nxt_utc < now_utc:
+            print('Next: imminent')
         else:
             mins = int((nxt_utc - now_utc).total_seconds() / 60)
-            print(f'{nxt_local.strftime(\"%H:%M:%S\")} (in {mins} min)')
-except: pass
-" 2>/dev/null)
-            [[ -n "$NEXT_INFO" ]] && echo "Next: $NEXT_INFO"
+            print(f'Next: {nxt_local.strftime(\"%H:%M:%S\")} (in {mins} min)')
+except Exception as e:
+    print(f'Next: (error computing: {e})')
+"
+            fi
           else
             echo "Job: not running"
           fi
+          set -e
           ;;
         start)
           INTERVAL="${1:-1200}"
@@ -548,7 +783,7 @@ except: pass
             '  <key>ProgramArguments</key><array>' \
             '    <string>/bin/sh</string>' \
             '    <string>-c</string>' \
-            '    <string>/usr/bin/curl -sf -m 600 -X POST http://localhost:8100/api/v1/slack/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/linear/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/meets/fetch -o /dev/null</string>' \
+            '    <string>/usr/bin/curl -sf -m 600 -X POST http://localhost:8100/api/v1/slack/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/linear/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/meets/fetch -o /dev/null; /usr/bin/curl -sf -m 120 -X POST http://localhost:8100/api/v1/epics/fetch -o /dev/null</string>' \
             '  </array>' \
             "  <key>StartInterval</key><integer>${INTERVAL}</integer>" \
             '  <key>RunAtLoad</key><true/>' \
@@ -556,7 +791,7 @@ except: pass
 
           launchctl load "$pf" 2>/dev/null
           echo "Job started — fetching all sources every $((INTERVAL / 60)) minutes"
-          echo "Runs sequentially: slack (10 min timeout) → linear → meets"
+          echo "Runs sequentially: slack (10 min timeout) → linear → meets → epics"
           ;;
         stop)
           pf="$HOME/Library/LaunchAgents/${PLIST_NAME}.plist"

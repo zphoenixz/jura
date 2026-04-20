@@ -1,6 +1,9 @@
 import asyncio
+import logging
 import re
 from datetime import date, datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -327,7 +330,7 @@ async def fetch_and_store_slack(
     try:
         enriched = await _enrich_people(db, encountered_user_ids)
         if enriched:
-            warnings.append(f"Enriched {enriched} people via users.info")
+            logger.info("Enriched %d people via users.info", enriched)
     except Exception as e:
         warnings.append(f"People enrichment failed: {e}")
 

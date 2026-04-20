@@ -1,4 +1,7 @@
+import logging
 from datetime import date, datetime
+
+logger = logging.getLogger(__name__)
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -326,7 +329,7 @@ async def fetch_and_store_linear(
             related_issues = await _fetch_issues_by_numbers(
                 team_id, list(missing_identifiers)
             )
-            warnings.append(f"Fetched {len(related_issues)} out-of-cycle relatives")
+            logger.info("Fetched %d out-of-cycle relatives", len(related_issues))
         except Exception as e:
             warnings.append(f"Failed to fetch out-of-cycle relatives: {e}")
 
@@ -477,7 +480,7 @@ async def fetch_and_store_linear(
     try:
         enriched = await _enrich_linear_people(db, encountered_user_ids)
         if enriched:
-            warnings.append(f"Enriched {enriched} people via Linear user query")
+            logger.info("Enriched %d people via Linear user query", enriched)
     except Exception as e:
         warnings.append(f"People enrichment failed: {e}")
 

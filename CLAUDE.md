@@ -68,6 +68,10 @@ jura ls                        # List OV resources (default workspace)
 jura ls -w <workspace>         # List resources for a workspace
 jura ls viking://resources/docs/  # Drill into a URI path
 
+# Plugin tests
+jura test                      # Run all plugin unit tests (stdlib unittest, no extra deps)
+jura test -v                   # Verbose; extra args pass through to unittest
+
 # Management API
 jura api status                # Health check + weeks data summary
 jura api restart               # Start or restart API + DB (data preserved)

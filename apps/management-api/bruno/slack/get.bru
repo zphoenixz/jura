@@ -5,14 +5,14 @@ meta {
 }
 
 get {
-  url: {{host}}{{apiPrefix}}/slack?week=2026-04-13&channel=core-squad
+  url: {{host}}{{apiPrefix}}/slack?channel=core-squad
   body: none
   auth: none
 }
 
 params:query {
-  week: 2026-04-13
   channel: core-squad
+  ~week: 2026-04-13
   ~is_dm: false
   ~is_thread_reply: false
   ~person_id: replace-with-uuid

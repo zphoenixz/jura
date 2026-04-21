@@ -1,0 +1,55 @@
+{
+  "linear": {
+    "team_id": "<linear-team-uuid>",
+    "template": {
+      "parent": {
+        "title": "[Parent] {name}'s Onboarding",
+        "priority": 2,
+        "labels": ["onboarding"]
+      },
+      "children": [
+        {
+          "title": "first onboarding task",
+          "estimate": 1,
+          "priority": 2,
+          "labels": ["onboarding"],
+          "description": "link or instruction here"
+        },
+        {
+          "title": "second onboarding task",
+          "estimate": 2,
+          "priority": 2,
+          "labels": ["onboarding"],
+          "description": ""
+        }
+      ]
+    }
+  },
+  "slack": {
+    "token_env": "SLACK_BOT_TOKEN",
+    "token_env_file": "apps/management-api/.env",
+    "channels": ["channel-a", "channel-b"],
+    "welcome_template": "Hi {first_name}! Welcome. Your first task: {linear_url}"
+  },
+  "calendar": {
+    "common_meetings": ["Weekly Standup"],
+    "event_id_cache": {}
+  },
+  "notion": {
+    "directory": {
+      "page_id": "<notion-page-id>",
+      "group_heading_format": "### {emoji} {display_name}",
+      "member_line_prefix": "**Team:** "
+    }
+  },
+  "groups": {
+    "group-alias": {
+      "display_name": "Group A",
+      "emoji": "🤖",
+      "meetings": {
+        "retro": "Retrospective - A",
+        "planning": "Planning - A"
+      }
+    }
+  }
+}

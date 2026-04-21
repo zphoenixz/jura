@@ -585,6 +585,40 @@ if [[ "${1:-}" == "sync" ]]; then
   exec python3 "$SCRIPT_DIR/.openviking/plugin/scripts/ov_sync.py" "$SYNC_CMD" "$SYNC_WS" ${SYNC_ARGS[@]+"${SYNC_ARGS[@]}"}
 fi
 
+# ─── Subcommand: test ───────────────────────────────────────
+# jura test [pattern] [-v|...] — run plugin unit tests
+if [[ "${1:-}" == "test" ]]; then
+  shift
+  TEST_DIR="$SCRIPT_DIR/.openviking/plugin/tests"
+  if [[ ! -d "$TEST_DIR" ]]; then
+    echo -e "${RED}No test directory at $TEST_DIR${RESET}" >&2
+    exit 1
+  fi
+  PIPX_OV_PYTHON="$HOME/.local/pipx/venvs/openviking/bin/python3"
+  if [[ -x "$PIPX_OV_PYTHON" ]]; then
+    TEST_PY="$PIPX_OV_PYTHON"
+  elif command -v python3 >/dev/null 2>&1; then
+    TEST_PY="python3"
+  else
+    echo -e "${RED}No python3 available to run tests${RESET}" >&2
+    exit 1
+  fi
+
+  rc=0
+  found=0
+  for f in "$TEST_DIR"/test_*.py; do
+    [[ -f "$f" ]] || continue
+    found=1
+    echo -e "${DIM}→ $(basename "$f")${RESET}"
+    "$TEST_PY" "$f" ${1+"$@"} || rc=$?
+  done
+  if [[ $found -eq 0 ]]; then
+    echo -e "${RED}No test files in $TEST_DIR${RESET}" >&2
+    exit 1
+  fi
+  exit $rc
+fi
+
 # ─── Subcommand: api ────────────────────────────────────────
 # jura api status|restart|stop|logs
 if [[ "${1:-}" == "api" ]]; then
@@ -906,6 +940,10 @@ while [[ $# -gt 0 ]]; do
       echo "  $(basename "$0") ls                            List OV resources (default workspace)"
       echo "  $(basename "$0") ls -w <workspace>             List resources for a workspace"
       echo "  $(basename "$0") ls viking://resources/docs/   List a specific URI path"
+      echo ""
+      echo "Plugin tests:"
+      echo "  $(basename "$0") test                          Run all plugin unit tests"
+      echo "  $(basename "$0") test -v                       Verbose output"
       echo ""
       echo "Management API:"
       echo "  $(basename "$0") api status                    Health check + weeks summary"

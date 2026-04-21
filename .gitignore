@@ -3,3 +3,4 @@
 .openviking/session/
 .openviking/staging/
 .jura/*.json
+.claude/skills/onboarding/config.json

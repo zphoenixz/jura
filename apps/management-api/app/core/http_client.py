@@ -34,6 +34,11 @@ async def resilient_request(
                 wait = max(wait, min(2 ** attempt, 30))
                 await asyncio.sleep(wait)
                 continue
+            if 500 <= response.status_code < 600:
+                if attempt >= max_retries:
+                    return response
+                await asyncio.sleep(min(2 ** attempt, 30))
+                continue
             return response
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout) as exc:
             if isinstance(exc, httpx.ConnectError):

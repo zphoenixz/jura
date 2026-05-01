@@ -13,10 +13,21 @@ from app.core.week_utils import is_current_week, resolve_week, week_label
 from app.database import get_db
 from app.models.linear import LinearTicket
 from app.schemas.common import PaginatedResponse
-from app.schemas.linear import LinearFetchSummary, LinearMutationResponse, LinearTicketCreate, LinearTicketPatch, LinearTicketRead
+from app.schemas.linear import (
+    EpicProgressEntry,
+    EpicProgressPoints,
+    EpicProgressRequest,
+    EpicProgressResponse,
+    LinearFetchSummary,
+    LinearMutationResponse,
+    LinearTicketCreate,
+    LinearTicketPatch,
+    LinearTicketRead,
+)
 from app.services.fetch_log_service import complete_fetch_log, is_fetch_in_progress, start_fetch_log
 from app.services.linear_fetcher import fetch_and_store_linear
 from app.services.linear_writer import create_ticket, patch_ticket
+from app.services.linear_progress import fetch_epic_progress
 from app.services.week_service import get_or_create_week, get_week
 
 router = APIRouter(prefix="/api/v1/linear", tags=["linear"])
@@ -229,3 +240,50 @@ async def create_new_ticket(
         await db.commit()
 
     return response
+
+
+@router.post("/epics/progress", response_model=EpicProgressResponse)
+async def epic_progress(body: EpicProgressRequest):
+    """Roll up descendant story points per declared epic, cycle-agnostic.
+
+    Returns a mapping of identifier → {points, descendant_count, missing_estimates}.
+    Per-epic failures yield `null` for that identifier and a `warnings` entry;
+    callers can render the rest of the batch normally.
+    """
+    if not body.identifiers:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "identifiers must be non-empty", "code": "empty_identifiers"},
+        )
+    if len(body.identifiers) > 100:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "identifiers list too large (max 100)",
+                "code": "too_many_identifiers",
+            },
+        )
+
+    results, warnings = await fetch_epic_progress(body.identifiers)
+
+    if all(v is None for v in results.values()):
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "error": "Linear lookups failed for the entire batch",
+                "code": "linear_unavailable",
+                "warnings": warnings,
+            },
+        )
+
+    typed: dict[str, EpicProgressEntry | None] = {}
+    for ident, value in results.items():
+        if value is None:
+            typed[ident] = None
+        else:
+            typed[ident] = EpicProgressEntry(
+                points=EpicProgressPoints(**value.points),
+                descendant_count=value.descendant_count,
+                missing_estimates=value.missing_estimates,
+            )
+    return EpicProgressResponse(results=typed, warnings=warnings)

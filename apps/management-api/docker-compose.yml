@@ -25,6 +25,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://mgmt:mgmt@db:5432/management
     volumes:
       - ./static:/app/static
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
     depends_on:
       db:
         condition: service_healthy

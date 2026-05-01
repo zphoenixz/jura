@@ -96,3 +96,30 @@ class LinearMutationResponse(BaseModel):
     refreshed_at: datetime | None = None
     items: list[LinearTicketRead] = []
     total: int = 0
+
+
+class EpicProgressRequest(BaseModel):
+    """Request body for POST /api/v1/linear/epics/progress"""
+
+    identifiers: list[str]
+
+
+class EpicProgressPoints(BaseModel):
+    done: int = 0
+    in_progress: int = 0
+    todo: int = 0
+    total: int = 0
+
+
+class EpicProgressEntry(BaseModel):
+    points: EpicProgressPoints
+    descendant_count: int
+    missing_estimates: int
+
+
+class EpicProgressResponse(BaseModel):
+    """Mapping of identifier → progress (or `None` for per-epic failures)
+    plus a list of warnings."""
+
+    results: dict[str, EpicProgressEntry | None]
+    warnings: list[str] = []

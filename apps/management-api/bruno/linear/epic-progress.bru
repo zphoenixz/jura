@@ -1,0 +1,17 @@
+meta {
+  name: Epic Progress
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{host}}{{apiPrefix}}/linear/epics/progress
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "identifiers": ["TEAM-123", "TEAM-456"]
+  }
+}

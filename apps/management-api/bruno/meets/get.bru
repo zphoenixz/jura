@@ -5,13 +5,13 @@ meta {
 }
 
 get {
-  url: {{host}}{{apiPrefix}}/meets?week=2026-04-13
+  url: {{host}}{{apiPrefix}}/meets
   body: none
   auth: none
 }
 
 params:query {
-  week: 2026-04-13
+  ~week: 2026-04-13
   ~title: sprint
   ~person_id: replace-with-uuid
   ~limit: 100

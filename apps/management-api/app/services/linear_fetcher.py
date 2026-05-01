@@ -89,7 +89,14 @@ async def graphql(query: str, variables: dict) -> dict:
         },
         json={"query": query, "variables": variables},
     )
-    data = response.json()
+    if response.status_code != 200:
+        snippet = (response.text or "")[:200]
+        raise RuntimeError(f"Linear HTTP {response.status_code}: {snippet}")
+    try:
+        data = response.json()
+    except ValueError:
+        snippet = (response.text or "")[:200]
+        raise RuntimeError(f"Linear returned non-JSON body (status {response.status_code}): {snippet}")
     if "errors" in data:
         raise RuntimeError(f"Linear GraphQL errors: {data['errors']}")
     return data.get("data", {})

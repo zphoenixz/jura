@@ -726,10 +726,17 @@ else:
             # Anchor on /usr/bin/curl at the start of args to avoid matching
             # the parent /bin/sh -c wrapper, whose args contain "curl" too.
             ACTIVE_LINE=$(pgrep -lf "^/usr/bin/curl .*localhost:8100/api/v1/.*/fetch" 2>/dev/null | head -1)
+            RUNNING_NOW=0
             if [[ -n "$ACTIVE_LINE" ]]; then
               ACTIVE_PID=${ACTIVE_LINE%% *}
               ACTIVE_URL=$(echo "$ACTIVE_LINE" | grep -o '/api/v1/[a-z]*/fetch' | head -1)
-              echo "Running: POST ${ACTIVE_URL:-?} (pid $ACTIVE_PID)"
+              ACTIVE_ELAPSED=$(ps -o etime= -p "$ACTIVE_PID" 2>/dev/null | tr -d ' ')
+              if [[ -n "$ACTIVE_ELAPSED" ]]; then
+                echo "Running: POST ${ACTIVE_URL:-?} (pid $ACTIVE_PID, ${ACTIVE_ELAPSED} elapsed)"
+              else
+                echo "Running: POST ${ACTIVE_URL:-?} (pid $ACTIVE_PID)"
+              fi
+              RUNNING_NOW=1
             else
               echo "Running: idle (waiting for next interval)"
             fi
@@ -741,7 +748,7 @@ else:
             if [[ -z "$HEALTH_JSON" ]]; then
               echo "  (health unreachable — is the API running? jura api status)"
             else
-              echo "$HEALTH_JSON" | JOB_INTERVAL="$JOB_INTERVAL" python3 -c "
+              echo "$HEALTH_JSON" | JOB_INTERVAL="$JOB_INTERVAL" RUNNING_NOW="$RUNNING_NOW" python3 -c "
 import json, os, sys
 from datetime import datetime, timedelta, timezone
 local_tz = timezone(timedelta(hours=-4))
@@ -775,18 +782,24 @@ for src in ['slack', 'linear', 'meets', 'epics']:
         print(f'  {src:8s} (row error: {e})')
 
 try:
-    times = [s.get('last_fetched') for s in sources.values() if isinstance(s, dict) and s.get('last_fetched')]
-    if times:
-        interval = int(os.environ.get('JOB_INTERVAL', '1200'))
-        latest_utc = datetime.fromisoformat(max(times).replace('Z', '+00:00'))
-        nxt_utc = latest_utc + timedelta(seconds=interval)
-        now_utc = datetime.now(timezone.utc)
-        nxt_local = nxt_utc.astimezone(local_tz)
-        if nxt_utc < now_utc:
-            print('Next: imminent')
-        else:
-            mins = int((nxt_utc - now_utc).total_seconds() / 60)
-            print(f'Next: {nxt_local.strftime(\"%H:%M:%S\")} (in {mins} min)')
+    if os.environ.get('RUNNING_NOW') == '1':
+        # A curl is mid-flight: the per-source rows above show the PRIOR cycle's
+        # timestamps, so latest_fetched + interval is in the past and would
+        # falsely read 'imminent'. Say what's actually happening instead.
+        print('Next: running now (cycle in progress)')
+    else:
+        times = [s.get('last_fetched') for s in sources.values() if isinstance(s, dict) and s.get('last_fetched')]
+        if times:
+            interval = int(os.environ.get('JOB_INTERVAL', '1200'))
+            latest_utc = datetime.fromisoformat(max(times).replace('Z', '+00:00'))
+            nxt_utc = latest_utc + timedelta(seconds=interval)
+            now_utc = datetime.now(timezone.utc)
+            nxt_local = nxt_utc.astimezone(local_tz)
+            if nxt_utc < now_utc:
+                print('Next: imminent')
+            else:
+                mins = int((nxt_utc - now_utc).total_seconds() / 60)
+                print(f'Next: {nxt_local.strftime(\"%H:%M:%S\")} (in {mins} min)')
 except Exception as e:
     print(f'Next: (error computing: {e})')
 "

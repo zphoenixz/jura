@@ -57,14 +57,25 @@ async def fetch_and_store_meets(
     from_date = monday.isoformat()
     to_date = (sunday + timedelta(days=1)).isoformat()
 
+    warnings: list[str] = []
+
     response = await resilient_request(
         "POST", FIREFLIES_API,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.fireflies_api_key}"},
         json={"query": GRAPHQL_QUERY, "variables": {"fromDate": from_date, "toDate": to_date, "participants": [participant_email], "limit": 50}},
     )
 
-    data = response.json()
-    warnings = []
+    if response.status_code != 200:
+        snippet = (response.text or "")[:200]
+        warnings.append(f"Fireflies HTTP {response.status_code}: {snippet}")
+        return 0, 0, warnings
+
+    try:
+        data = response.json()
+    except ValueError:
+        snippet = (response.text or "")[:200]
+        warnings.append(f"Fireflies returned non-JSON body (status {response.status_code}): {snippet}")
+        return 0, 0, warnings
 
     if "errors" in data:
         warnings.append(f"Fireflies API errors: {data['errors']}")

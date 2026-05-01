@@ -337,6 +337,43 @@ Build the full analysis object. Populate every top-level field even if empty (us
   - `identifier`, `title`, `pm_lead` (from assignee), `squad`, `status`, `points_done`, `points_total`, `direct_children`
   - `tree` — flat map `{child_id: {"children": [...]}}` for every descendant
   - `matched_orphans` — orphans matched to this epic with confidence ≥ `FEATURE_MATCH_THRESHOLD`
+  - `progress` — `{points: {done, in_progress, todo, total}, descendant_count, missing_estimates}` rolled up across **all** descendants from Linear (cycle-agnostic). May be `null` if the lookup failed for this epic.
+
+**Enrich declared_epics with cycle-agnostic progress:**
+
+After the `declared_epics` list is fully assembled, collect the identifiers and POST them in a single batch to `/api/v1/linear/epics/progress`. Merge each entry's `progress` payload onto its `declared_epics[*]` entry under a new key `progress`.
+
+```python
+import json, urllib.request, urllib.error, sys
+
+epic_ids = [e["identifier"] for e in declared_epics]
+progress_results: dict = {}
+progress_warnings: list[str] = []
+if epic_ids:
+    try:
+        req = urllib.request.Request(
+            "http://localhost:8100/api/v1/linear/epics/progress",
+            data=json.dumps({"identifiers": epic_ids}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        progress_results = payload.get("results") or {}
+        progress_warnings = payload.get("warnings") or []
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError) as exc:
+        print(f"Warning: epic progress lookup failed: {exc}", file=sys.stderr)
+        meta.setdefault("degraded_sources", []).append("epic_progress_unavailable")
+
+for epic in declared_epics:
+    epic["progress"] = progress_results.get(epic["identifier"])  # may be None
+
+if progress_warnings:
+    print(f"Epic progress warnings: {progress_warnings}", file=sys.stderr)
+```
+
+If the call fails entirely (network, 5xx), every `declared_epics[*].progress` is set to `None`, `meta.degraded_sources` gains `"epic_progress_unavailable"`, and the skill continues. Per-epic `null` values pass through unchanged — the UI renders "—".
+
 - `proposed_epics` — from the Pass 2 new-cluster output
 - `implicit_candidates` — roots with `root_classification == implicit_epic_candidate`; build `tree` from their descendants, include `suggested_title = "[EPIC] " + current_title.lstrip("[PARENT] ").lstrip()` or the LLM's suggestion if one was returned
 - `unparented` — feature orphans with no match (confidence < `FEATURE_MATCH_THRESHOLD`) and not a bug
@@ -457,11 +494,11 @@ IMPLICIT_EPIC_MIN_DIRECT_CHILDREN = 2
 IMPLICIT_EPIC_MIN_DESCENDANTS = 4
 
 # Pass 1 deterministic scoring — signal weights (Bayesian priors, auto-calibrated)
-WEIGHT_LABEL_OVERLAP = 31.0      # was 29.7 — stable (within 5% tolerance)
-WEIGHT_TITLE_OVERLAP = 48.1      # was 50.6 — stable (within 5% tolerance)
-WEIGHT_DESCRIPTION_OVERLAP = 15.6 # was 14.4 — calibrated 2026-04-20 (31 decisions, +8.3%)
-WEIGHT_SQUAD_MATCH = 2.7         # was 2.6 — stable (within 5% tolerance)
-WEIGHT_NOTION_MATCH = 2.7        # was 2.6 — stable (within 5% tolerance)
+WEIGHT_LABEL_OVERLAP = 45.3      # was 29.2 — calibrated 2026-04-28 (103 decisions, +55.1%)
+WEIGHT_TITLE_OVERLAP = 45.8      # was 28.0 — calibrated 2026-04-28 (103 decisions, +63.6%)
+WEIGHT_DESCRIPTION_OVERLAP = 5.2 # was 40.3 — calibrated 2026-04-28 (103 decisions, -87.1%)
+WEIGHT_SQUAD_MATCH = 1.8         # was 1.3 — calibrated 2026-04-28 (103 decisions, +38.5%)
+WEIGHT_NOTION_MATCH = 1.8        # was 1.3 — calibrated 2026-04-28 (103 decisions, +38.5%)
 
 # Pass 1 deterministic scoring — thresholds
 PASS1_LOCK_THRESHOLD = 70       # ≥70 locks a match, skips Pass 2

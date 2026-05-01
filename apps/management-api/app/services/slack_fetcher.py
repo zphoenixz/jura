@@ -36,7 +36,14 @@ async def _slack(method: str, params: dict | None = None) -> dict:
         response = await resilient_request("GET", f"{SLACK_API}/{method}", headers=headers, params=params)
     else:
         response = await resilient_request("POST", f"{SLACK_API}/{method}", headers=headers, json=params)
-    return response.json()
+    if response.status_code != 200:
+        snippet = (response.text or "")[:200]
+        return {"ok": False, "error": f"http_{response.status_code}", "http_status": response.status_code, "body_snippet": snippet}
+    try:
+        return response.json()
+    except ValueError:
+        snippet = (response.text or "")[:200]
+        return {"ok": False, "error": "non_json_body", "http_status": response.status_code, "body_snippet": snippet}
 
 
 async def _paginate(method: str, params: dict, key: str, delay: float = 0.3) -> list:

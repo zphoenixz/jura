@@ -980,10 +980,12 @@ while [[ $# -gt 0 ]]; do
       echo "  JURA_DEFAULT_WORKSPACE Default workspace (current: $JURA_DEFAULT_WORKSPACE)"
       echo "  JURA_NAME              Assistant name (current: $JURA_NAME)"
       echo "  JURA_MODEL             Claude model (current: $JURA_MODEL)"
-      echo "  JURA_RESULTS           Search results to fetch (current: ${JURA_RESULTS:-8})"
-      echo "  JURA_READ              Documents to read (current: ${JURA_READ:-5})"
+      echo "  JURA_RESULTS           Search results to fetch per backend (current: ${JURA_RESULTS:-12})"
+      echo "  JURA_READ              Final documents sent to Claude (current: ${JURA_READ:-5})"
       echo "  JURA_THRESHOLD         Min score 0-1 (current: ${JURA_THRESHOLD:-0.10})"
       echo "  JURA_DECAY_DAYS        Days per decay half-life (current: $JURA_DECAY_DAYS)"
+      echo "  JURA_RERANK            LLM-rerank candidates by content (current: ${JURA_RERANK:-1})"
+      echo "  JURA_RERANK_POOL       Candidates sent to reranker (current: ${JURA_RERANK_POOL:-15})"
       exit 0
       ;;
     *)
@@ -1013,16 +1015,36 @@ else
 fi
 
 # How many results to fetch/read
-N_SEARCH="${JURA_RESULTS:-8}"
+N_SEARCH="${JURA_RESULTS:-12}"
 N_READ="${JURA_READ:-5}"
 THRESHOLD="${JURA_THRESHOLD:-0.10}"
 
-# 1. Search OV in parallel (context-aware + semantic)
+# ─── Reranker config ──────────────────────────────────────────
+# BM25/cosine measure token overlap, not answer relevance. Same-tokens-but-
+# wrong-doc routinely outranks the right doc. The reranker reads short
+# previews of a wider candidate pool and lets Haiku judge which actually
+# answer the question. Original QUESTION is preserved end-to-end — no query
+# rewriting (we tried; it whack-a-moled).
+RERANK="${JURA_RERANK:-1}"
+RERANK_POOL="${JURA_RERANK_POOL:-15}"
+RERANK_TIMEOUT="${JURA_RERANK_TIMEOUT:-30}"
+RERANK_PREVIEW_CHARS="${JURA_RERANK_PREVIEW_CHARS:-1500}"
+# Pool size: rerank wants more candidates so it has room to fix bad ranking;
+# without rerank, we go straight to the top N_READ.
+if [[ "$RERANK" == "1" ]]; then
+  POOL_SIZE="$RERANK_POOL"
+else
+  POOL_SIZE="$N_READ"
+fi
+
+# 1. Search OV in parallel (context-aware + semantic). Original query goes
+# verbatim to both backends — reranker handles precision downstream.
 echo -e "${DIM}[$WORKSPACE] Searching...${RESET}" >&2
 
 SEARCH_TMP=$(mktemp)
 FIND_TMP=$(mktemp)
-trap 'rm -f "$SEARCH_TMP" "$FIND_TMP"; rm -rf "$OV_CONF_DIR"' EXIT
+READ_DIR=$(mktemp -d)
+trap 'rm -f "$SEARCH_TMP" "$FIND_TMP"; rm -rf "$OV_CONF_DIR" "$READ_DIR"' EXIT
 
 SESSION_FLAG=""
 [[ -n "$SESSION_ID" ]] && SESSION_FLAG="--session-id $SESSION_ID"
@@ -1116,7 +1138,7 @@ RANKED=$(
       printf "%.6f\t%.4f\t%.4f\t%d\t%s\n", adjusted, score, factor, days, uri
     }' \
   | sort -t$'\t' -k1 -rn \
-  | head -n "$N_READ"
+  | head -n "$POOL_SIZE"
 )
 
 # Show ranked results in stderr
@@ -1136,18 +1158,130 @@ if [[ -z "$URIS" ]]; then
   exit 1
 fi
 
-# 2. Read top documents
 CONTEXT=""
-while IFS= read -r uri; do
-  echo -e "${DIM}  Reading ${uri}${RESET}" >&2
-  DOC=$(HOME="$OV_CONF_DIR" ov read "$uri" 2>&1 | grep -v '^cmd: ')
-  if [[ -n "$DOC" ]]; then
-    CONTEXT="${CONTEXT}
+
+if [[ "$RERANK" == "1" ]]; then
+  # 2a. Parallel-read the full candidate pool into READ_DIR, one file per
+  # candidate. We cache the full doc so the final Claude pass doesn't need
+  # to re-read the winners.
+  echo -e "${DIM}  Reading ${POOL_SIZE} candidates for rerank...${RESET}" >&2
+  RERANK_URIS=()
+  i=0
+  while IFS= read -r uri; do
+    [[ -z "$uri" ]] && continue
+    RERANK_URIS+=("$uri")
+    ( HOME="$OV_CONF_DIR" ov read "$uri" 2>&1 | grep -v '^cmd: ' > "$READ_DIR/${i}.doc" ) &
+    i=$((i+1))
+  done <<< "$URIS"
+  wait
+  POOL_COUNT=${#RERANK_URIS[@]}
+
+  # 2b. Build the rerank prompt: question + numbered list of (URI, preview).
+  # Preview is capped at RERANK_PREVIEW_CHARS to keep the prompt small.
+  RERANK_USER="Question: ${QUESTION}
+
+Candidates (URI + preview):
+"
+  for ((j=0; j<POOL_COUNT; j++)); do
+    PREVIEW=$(head -c "$RERANK_PREVIEW_CHARS" "$READ_DIR/${j}.doc" 2>/dev/null || echo "")
+    RERANK_USER="${RERANK_USER}
+[$((j+1))] ${RERANK_URIS[$j]}
+${PREVIEW}
+"
+  done
+
+  RERANK_SYS='You rerank search results for a knowledge-base retrieval system. Given a QUESTION and a numbered list of CANDIDATE DOCUMENTS (each with URI + content preview), output the indices of up to 5 candidates that BEST and MOST DIRECTLY answer the question, in rank order.
+
+Be strict: if a candidate does not actually answer the question (just shares some keywords), EXCLUDE it. Better to return 1-3 highly relevant ones than 5 with weak fits.
+
+Output ONE line, no preamble, no explanation:
+RANKED: i1,i2,i3,...
+
+Where i1 is most relevant. Use only indices that appear in the list (1 to N).'
+
+  echo -e "${DIM}  Reranking ${POOL_COUNT} candidates...${RESET}" >&2
+  RERANK_ERR=$(mktemp)
+  RERANK_OUTFILE=$(mktemp)
+  ( claude -p --tools "" --no-session-persistence --disable-slash-commands --model haiku --system-prompt "$RERANK_SYS" "$RERANK_USER" < /dev/null > "$RERANK_OUTFILE" 2> "$RERANK_ERR" ) &
+  RERANK_PID=$!
+  ( sleep "$RERANK_TIMEOUT" && kill -TERM "$RERANK_PID" 2>/dev/null ) &
+  RERANK_WATCHER=$!
+  set +e
+  wait "$RERANK_PID" 2>/dev/null
+  RERANK_RC=$?
+  kill "$RERANK_WATCHER" 2>/dev/null
+  wait "$RERANK_WATCHER" 2>/dev/null
+  set -e
+  RERANK_TIMED_OUT=0
+  [[ "$RERANK_RC" -eq 143 || "$RERANK_RC" -eq 137 ]] && RERANK_TIMED_OUT=1
+  RERANK_OUT=$(cat "$RERANK_OUTFILE")
+  rm -f "$RERANK_OUTFILE"
+
+  RANKED_LINE=$(printf '%s\n' "$RERANK_OUT" | awk '/^RANKED:/ { sub(/^RANKED:[[:space:]]*/,""); print; exit }')
+
+  TOP_INDICES=()
+  if [[ -n "$RANKED_LINE" ]]; then
+    IFS=',' read -ra IDX_RAW <<< "$RANKED_LINE"
+    for idx in "${IDX_RAW[@]}"; do
+      idx="${idx// /}"
+      if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx >= 1 )) && (( idx <= POOL_COUNT )); then
+        TOP_INDICES+=("$idx")
+        (( ${#TOP_INDICES[@]} >= N_READ )) && break
+      fi
+    done
+  fi
+
+  if [[ ${#TOP_INDICES[@]} -eq 0 ]]; then
+    # Fallback: keep the top N_READ from the decay ranking we already have.
+    if [[ "$RERANK_TIMED_OUT" -eq 1 ]]; then
+      echo -e "${DIM}  rerank timed out after ${RERANK_TIMEOUT}s, falling back to decay ranking${RESET}" >&2
+    else
+      echo -e "${DIM}  rerank failed (exit ${RERANK_RC}), falling back to decay ranking${RESET}" >&2
+    fi
+    if [[ -s "$RERANK_ERR" ]]; then
+      echo -e "${DIM}  stderr:${RESET}" >&2
+      sed 's/^/    /' "$RERANK_ERR" >&2
+    fi
+    if [[ -n "$RERANK_OUT" ]]; then
+      echo -e "${DIM}  stdout (first 3 lines):${RESET}" >&2
+      printf '%s\n' "$RERANK_OUT" | head -3 | sed 's/^/    /' >&2
+    fi
+    cap=$(( POOL_COUNT < N_READ ? POOL_COUNT : N_READ ))
+    for ((j=0; j<cap; j++)); do
+      TOP_INDICES+=("$((j+1))")
+    done
+  else
+    echo -e "${DIM}  reranked: ${RANKED_LINE}${RESET}" >&2
+  fi
+  rm -f "$RERANK_ERR"
+
+  # 2c. Build CONTEXT from cached docs at the chosen indices.
+  for idx in "${TOP_INDICES[@]}"; do
+    arr_idx=$((idx-1))
+    DOC_FILE="$READ_DIR/${arr_idx}.doc"
+    URI="${RERANK_URIS[$arr_idx]}"
+    if [[ -s "$DOC_FILE" ]]; then
+      DOC=$(cat "$DOC_FILE")
+      echo -e "${DIM}  Using ${URI}${RESET}" >&2
+      CONTEXT="${CONTEXT}
+--- Source: ${URI} ---
+${DOC}
+"
+    fi
+  done
+else
+  # 2. Read top documents (legacy: rerank disabled)
+  while IFS= read -r uri; do
+    echo -e "${DIM}  Reading ${uri}${RESET}" >&2
+    DOC=$(HOME="$OV_CONF_DIR" ov read "$uri" 2>&1 | grep -v '^cmd: ')
+    if [[ -n "$DOC" ]]; then
+      CONTEXT="${CONTEXT}
 --- Source: ${uri} ---
 ${DOC}
 "
-  fi
-done <<< "$URIS"
+    fi
+  done <<< "$URIS"
+fi
 
 if [[ -z "$CONTEXT" ]]; then
   echo -e "${RED}Could not read any documents.${RESET}" >&2
